@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 DYNAMIC MULTIPLAYER LEADERBOARD - Leaderboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <h2>🎮 DYNAMIC MULTIPLAYER LEADERBOARD</h2>
+            <nav>
+                <a href="index.html" class="nav-link">Dashboard</a>
+                <a href="leaderboard.html" class="nav-link active">Leaderboard</a>
+                <a href="network.html" class="nav-link">Player Network</a>
+                <a href="activity.html" class="nav-link">Activity Feed</a>
+                <a href="datastructures.html" class="nav-link">Data Structures</a>
+            </nav>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <header class="page-header">
+                <h1>Full Leaderboard</h1>
+                <p>Complete player rankings with live updates</p>
+            </header>
+
+            <!-- SEARCH AND CONTROLS -->
+            <div class="card controls-card">
+                <div class="search-box">
+                    <input type="text" id="search-player" placeholder="Search player...">
+                </div>
+                <div class="control-buttons">
+                    <button id="refresh-btn" class="btn secondary">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- LEADERBOARD TABLE -->
+            <div class="card leaderboard-card">
+                <div class="card-header">
+                    <h3>📊 LIVE LEADERBOARD</h3>
+                    <div class="live-indicator">
+                        <span class="dot"></span>
+                        LIVE
+                    </div>
+                </div>
+                <div class="leaderboard-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Player</th>
+                                <th>Score</th>
+                                <th>Change</th>
+                                <th>Status</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leaderboard-body">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

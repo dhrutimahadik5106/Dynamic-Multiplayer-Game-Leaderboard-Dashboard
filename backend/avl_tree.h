@@ -1,12 +1,15 @@
+
 #ifndef AVL_TREE_H
 #define AVL_TREE_H
 
 #include <vector>
 #include <string>
-#include "leaderboard.h"
+//#include "player.h"
+#include "player.h"
+
+
 
 using namespace std;
-
 
 /*-------------------------------------------------------
    AVL Tree Node
@@ -50,7 +53,7 @@ private:
 
     Node* insertNode(Node* node, Player player);
 
-    Node* deleteNode(Node* root, int score);
+    Node* deleteNode(Node* root, Player player);
 
     Node* minValueNode(Node* node);
 
@@ -63,9 +66,11 @@ public:
 
     void insert(Player player);
 
-    void remove(int score);
+    void remove(Player player);
 
     vector<Player> getSortedPlayers();
+
+    int getHeight();
 };
 
 #endif

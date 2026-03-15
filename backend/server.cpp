@@ -74,11 +74,7 @@ int main()
 
     cout << "Dynamic Multiplayer Leaderboard Server\n";
 
-    // Initial players
-    leaderboard.addPlayer("Alice",1200);
-    leaderboard.addPlayer("Bob",1100);
-    leaderboard.addPlayer("Mike",980);
-    leaderboard.addPlayer("Emma",920);
+    // Players are now generated in Leaderboard constructor (1000 players)
 
     // Start simulation thread
     thread sim(simulationEngine);
@@ -99,7 +95,7 @@ int main()
     // ==========================
     // LEADERBOARD API
     // ==========================
-    server.Get("/api/leaderboard",
+    server.Get("/leaderboard",
     [](const httplib::Request&, httplib::Response &res)
     {
         dataMutex.lock();
@@ -115,7 +111,7 @@ int main()
     // ==========================
     // TOP PLAYERS
     // ==========================
-    server.Get("/api/top",
+    server.Get("/topPlayers",
     [](const httplib::Request&, httplib::Response &res)
     {
         dataMutex.lock();
@@ -131,7 +127,7 @@ int main()
     // ==========================
     // ACTIVITY FEED
     // ==========================
-    server.Get("/api/activity",
+    server.Get("/activity",
     [](const httplib::Request&, httplib::Response &res)
     {
         dataMutex.lock();
@@ -145,9 +141,86 @@ int main()
 
 
     // ==========================
+    // STATS
+    // ==========================
+    server.Get("/stats",
+    [](const httplib::Request&, httplib::Response &res)
+    {
+        dataMutex.lock();
+        auto players = leaderboard.getLeaderboard();
+        auto activity = leaderboard.getActivity();
+        dataMutex.unlock();
+
+        // Calculate statistics
+        json stats = {
+            {"totalPlayers", (int)players.size()},
+            {"totalGames", (int)activity.size()},
+            {"activeSessions", (int)players.size()},
+            {"peakConcurrent", (int)players.size()},
+            {"uptime", 99.9}
+        };
+
+        // Calculate average score
+        double avgScore = 0;
+        if(!players.empty()) {
+            for(auto &p : players) avgScore += p.score;
+            avgScore /= players.size();
+        }
+        stats["averageScore"] = avgScore;
+
+        // Top score
+        int topScore = players.empty() ? 0 : players[0].score;
+        stats["topScore"] = topScore;
+
+        json response = {{"stats", stats}};
+        res.set_content(response.dump(4),"application/json");
+    });
+
+
+    // ==========================
+    // DATA STRUCTURES
+    // ==========================
+    server.Get("/datastructures",
+    [](const httplib::Request&, httplib::Response &res)
+    {
+        dataMutex.lock();
+        json dsStats = leaderboard.getDataStructureStats();
+        dataMutex.unlock();
+
+        json response = {{"datastructures", dsStats}};
+        res.set_content(response.dump(4),"application/json");
+    });
+
+
+    // ==========================
+    // MATCHES (Player Network)
+    // ==========================
+    server.Get("/matches",
+    [](const httplib::Request&, httplib::Response &res)
+    {
+        dataMutex.lock();
+        auto players = leaderboard.getLeaderboard();
+        dataMutex.unlock();
+
+        // Create matches based on score proximity
+        json matches = json::array();
+        for(size_t i = 0; i < players.size(); ++i) {
+            for(size_t j = i + 1; j < players.size() && j < i + 3; ++j) { // Connect to next 2 players
+                matches.push_back({
+                    {"source", players[i].username},
+                    {"target", players[j].username}
+                });
+            }
+        }
+
+        res.set_content(matches.dump(4),"application/json");
+    });
+
+
+    // ==========================
     // ADD PLAYER
     // ==========================
-    server.Post("/api/player",
+    server.Post("/addPlayer",
     [](const httplib::Request &req, httplib::Response &res)
     {
         json body = json::parse(req.body);
@@ -199,51 +272,168 @@ server.Get(R"(/api/player/(\d+))",
     {
         json body = json::parse(req.body);
 
-        int id = body["player_id"];
-        int change = body["score_change"];
+        int player_id = body["player_id"];
+        int score_change = body["score_change"];
 
         dataMutex.lock();
-        leaderboard.updateScore(id,change);
+        leaderboard.updateScore(player_id,score_change);
         dataMutex.unlock();
 
+        json response = {{"status","success"}};
+
+        res.set_content(response.dump(4),"application/json");
+    });
+
+    // ==========================
+    // SIMULATE UPDATE
+    // ==========================
+    server.Post("/api/simulate",
+    [](const httplib::Request&, httplib::Response &res)
+    {
+        dataMutex.lock();
+        leaderboard.simulateRandomUpdate();
+        dataMutex.unlock();
+
+        json response = {{"status","success"}};
+
+        res.set_content(response.dump(4),"application/json");
+    });
+
+    // ==========================
+    // NETWORK DATA
+    // ==========================
+    server.Get("/api/network",
+    [](const httplib::Request&, httplib::Response &res)
+    {
+        dataMutex.lock();
+        auto players = leaderboard.getLeaderboard();
+        dataMutex.unlock();
+
+        // Create nodes from players
+        json nodes = json::array();
+        for(size_t i = 0; i < players.size(); ++i) {
+            nodes.push_back({
+                {"id", players[i].id},
+                {"name", players[i].username},
+                {"score", players[i].score},
+                {"rank", (int)i + 1}
+            });
+        }
+
+        // Create links based on score proximity (simplified network)
+        json links = json::array();
+        for(size_t i = 0; i < players.size(); ++i) {
+            for(size_t j = i + 1; j < players.size(); ++j) {
+                int scoreDiff = abs(players[i].score - players[j].score);
+                if(scoreDiff < 200) { // Connect players with similar scores
+                    links.push_back({
+                        {"source", players[i].id},
+                        {"target", players[j].id},
+                        {"value", max(1, 10 - scoreDiff / 20)}
+                    });
+                }
+            }
+        }
+
         json response = {
-            {"status","updated"}
+            {"nodes", nodes},
+            {"links", links}
         };
 
         res.set_content(response.dump(4),"application/json");
     });
 
-
-
-
     // ==========================
-    // STATS
+    // STATISTICS DATA
     // ==========================
     server.Get("/api/stats",
     [](const httplib::Request&, httplib::Response &res)
     {
         dataMutex.lock();
-
-        int total = leaderboard.totalPlayers();
-        int top = leaderboard.topScore();
-        double avg = leaderboard.avgScore();
-
+        auto players = leaderboard.getLeaderboard();
+        auto activity = leaderboard.getActivity();
         dataMutex.unlock();
 
+        // Calculate statistics
+        json stats = {
+            {"totalPlayers", (int)players.size()},
+            {"totalGames", (int)activity.size()},
+            {"activeSessions", (int)players.size()}, // Simplified
+            {"peakConcurrent", (int)players.size()}, // Simplified
+            {"uptime", 99.9}
+        };
+
+        // Calculate average score
+        double avgScore = 0;
+        if(!players.empty()) {
+            for(auto &p : players) avgScore += p.score;
+            avgScore /= players.size();
+        }
+        stats["averageScore"] = avgScore;
+
+        // Score distribution (simplified histogram)
+        json scoreDist = {
+            {"labels", {"0-200", "201-400", "401-600", "601-800", "801-1000", "1000+"}},
+            {"data", {0, 0, 0, 0, 0, 0}}
+        };
+        for(auto &p : players) {
+            int bucket = min(5, p.score / 200);
+            scoreDist["data"][bucket] = (int)scoreDist["data"][bucket] + 1;
+        }
+
+        // Performance trends (simplified - last 10 activities)
+        json trends = {
+            {"labels", {}},
+            {"data", {}}
+        };
+        vector<double> trendData;
+        for(size_t i = 0; i < min((size_t)10, activity.size()); ++i) {
+            trends["labels"].push_back("T-" + to_string(10-i));
+            trendData.push_back(avgScore + (rand() % 100 - 50)); // Simulated trend
+        }
+        trends["data"] = trendData;
+
+        // Rank distribution
+        json rankDist = {0, 0, 0, 0}; // Top 10%, 25%, 50%, bottom 50%
+        if(!players.empty()) {
+            int top10 = players.size() / 10;
+            int top25 = players.size() / 4;
+            int top50 = players.size() / 2;
+            rankDist[0] = top10;
+            rankDist[1] = top25 - top10;
+            rankDist[2] = top50 - top25;
+            rankDist[3] = players.size() - top50;
+        }
+
+        // Activity timeline
+        json timeline = {
+            {"labels", {}},
+            {"data", {}}
+        };
+        for(size_t i = 0; i < min((size_t)20, activity.size()); ++i) {
+            timeline["labels"].push_back("Event " + to_string(i+1));
+            timeline["data"].push_back(rand() % 10 + 1); // Simulated activity count
+        }
+
         json response = {
-            {"total_players", total},
-            {"top_score", top},
-            {"avg_score", avg}
+            {"stats", stats},
+            {"scoreDistribution", scoreDist},
+            {"performanceTrends", trends},
+            {"rankDistribution", rankDist},
+            {"activityTimeline", timeline}
         };
 
         res.set_content(response.dump(4),"application/json");
     });
 
+    // ==========================
+    // STATIC FILE SERVING
+    // ==========================
+    server.set_mount_point("/", "../frontend");
 
     cout << "Server running on http://localhost:8080\n";
-
-    server.listen("0.0.0.0",8080);
+    cout << "Frontend available at: http://localhost:8080/index.html\n";
+    server.listen("0.0.0.0", 8080);
 
     return 0;
 }
-

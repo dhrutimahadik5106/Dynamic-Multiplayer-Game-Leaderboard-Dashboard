@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 DYNAMIC MULTIPLAYER LEADERBOARD - Data Structures</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>🎮 DASHBOARD</h2>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="index.html" class="nav-link">Dashboard</a>
+            <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+            <a href="network.html" class="nav-link">Network</a>
+            <a href="activity.html" class="nav-link">Activity</a>
+            <a href="datastructures.html" class="nav-link active">Data Structures</a>
+        </nav>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <div class="content-header">
+            <h1>🗂️ Data Structures Analysis</h1>
+            <p>Real-time visualization of internal data structures and performance metrics</p>
+        </div>
+
+        <!-- DATA STRUCTURES STATS -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-icon">🌳</div>
+                <div class="stat-content">
+                    <h3>AVL Tree</h3>
+                    <div class="stat-value" id="avl-height">--</div>
+                    <p>Tree Height</p>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-content">
+                    <h3>Max Heap</h3>
+                    <div class="stat-value" id="heap-size">--</div>
+                    <p>Heap Size</p>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">🔗</div>
+                <div class="stat-content">
+                    <h3>Hash Table</h3>
+                    <div class="stat-value" id="hash-size">--</div>
+                    <p>Table Size</p>
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-icon">📝</div>
+                <div class="stat-content">
+                    <h3>Activity Log</h3>
+                    <div class="stat-value" id="activity-size">--</div>
+                    <p>Log Entries</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- DATA STRUCTURES VISUALIZATION -->
+        <div class="card">
+            <div class="card-header">
+                <h3>📈 Data Structure Performance</h3>
+            </div>
+            <div class="card-content">
+                <div id="ds-chart" class="chart-container"></div>
+            </div>
+        </div>
+
+        <!-- STRUCTURE DETAILS -->
+        <div class="card">
+            <div class="card-header">
+                <h3>🔍 Structure Details</h3>
+            </div>
+            <div class="card-content">
+                <div class="structure-details">
+                    <div class="detail-section">
+                        <h4>AVL Tree (Self-Balancing Binary Search Tree)</h4>
+                        <ul>
+                            <li><strong>Purpose:</strong> Maintains sorted player data for efficient leaderboard queries</li>
+                            <li><strong>Operations:</strong> O(log n) insert, delete, search</li>
+                            <li><strong>Balance:</strong> Automatically maintains height difference ≤ 1</li>
+                            <li><strong>Height:</strong> Indicates tree balance and search efficiency</li>
+                        </ul>
+                    </div>
+
+                    <div class="detail-section">
+                        <h4>Max Heap (Priority Queue)</h4>
+                        <ul>
+                            <li><strong>Purpose:</strong> Quick access to highest-scoring players</li>
+                            <li><strong>Operations:</strong> O(log n) insert, O(1) get max</li>
+                            <li><strong>Structure:</strong> Complete binary tree with heap property</li>
+                            <li><strong>Size:</strong> Total number of players in heap</li>
+                        </ul>
+                    </div>
+
+                    <div class="detail-section">
+                        <h4>Hash Table (Player Map)</h4>
+                        <ul>
+                            <li><strong>Purpose:</strong> Fast player lookup by ID</li>
+                            <li><strong>Operations:</strong> O(1) average case lookup</li>
+                            <li><strong>Collisions:</strong> Handled via chaining or open addressing</li>
+                            <li><strong>Size:</strong> Number of key-value pairs stored</li>
+                        </ul>
+                    </div>
+
+                    <div class="detail-section">
+                        <h4>Activity Log (Vector)</h4>
+                        <ul>
+                            <li><strong>Purpose:</strong> Records all player score changes and events</li>
+                            <li><strong>Operations:</strong> O(1) append, O(n) traversal</li>
+                            <li><strong>Size:</strong> Total number of logged activities</li>
+                            <li><strong>Retention:</strong> Maintains recent activity history</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="datastructures.js"></script>
+</body>
+</html>

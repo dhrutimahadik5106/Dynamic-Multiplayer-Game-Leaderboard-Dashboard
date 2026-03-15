@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 DYNAMIC MULTIPLAYER LEADERBOARD - Game Stats</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <h2>🎮 DYNAMIC MULTIPLAYER LEADERBOARD</h2>
+            <nav>
+                <a href="index.html" class="nav-link">Dashboard</a>
+                <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+                <a href="network.html" class="nav-link">Player Network</a>
+                <a href="activity.html" class="nav-link">Activity Feed</a>
+                <a href="stats.html" class="nav-link active">Game Stats</a>
+            </nav>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <header class="page-header">
+                <h1>Game Statistics</h1>
+                <p>Comprehensive analytics and database insights</p>
+            </header>
+
+            <!-- STATS OVERVIEW -->
+            <div class="stats-grid">
+                <div class="card stat-card">
+                    <div class="card-icon">👥</div>
+                    <div class="card-content">
+                        <h3>Total Players</h3>
+                        <div class="stat-value" id="total-players">0</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-icon">🎯</div>
+                    <div class="card-content">
+                        <h3>Total Matches</h3>
+                        <div class="stat-value" id="total-matches">0</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-icon">📊</div>
+                    <div class="card-content">
+                        <h3>Avg Session Time</h3>
+                        <div class="stat-value" id="avg-session">0m</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-icon">🏆</div>
+                    <div class="card-content">
+                        <h3>Records Broken</h3>
+                        <div class="stat-value" id="records-broken">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHARTS GRID -->
+            <div class="charts-grid">
+                <!-- Top 10 Players Chart -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>🏆 Top 10 Players</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="score-distribution-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Score Distribution -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>📊 Rank Distribution</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="rank-distribution-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Player Growth -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>📈 Performance Trends</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="performance-trends-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Activity Timeline -->
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>🕐 Activity Timeline</h3>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="activity-timeline-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DATABASE STATS -->
+            <div class="card db-stats-card">
+                <div class="card-header">
+                    <h3>💾 Database Statistics</h3>
+                </div>
+                <div class="db-stats-grid">
+                    <div class="db-stat">
+                        <span class="db-label">Players Table:</span>
+                        <span class="db-value" id="db-players">0 rows</span>
+                    </div>
+                    <div class="db-stat">
+                        <span class="db-label">Matches Table:</span>
+                        <span class="db-value" id="db-matches">0 rows</span>
+                    </div>
+                    <div class="db-stat">
+                        <span class="db-label">Activity Log:</span>
+                        <span class="db-value" id="db-activity">0 entries</span>
+                    </div>
+                    <div class="db-stat">
+                        <span class="db-label">Database Size:</span>
+                        <span class="db-value" id="db-size">0 MB</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="stats.js"></script>
+</body>
+</html>

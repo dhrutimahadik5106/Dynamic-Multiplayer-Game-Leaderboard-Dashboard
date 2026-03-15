@@ -1,14 +1,16 @@
 #include "leaderboard.h"
 #include <algorithm>
 #include <cstdlib>
+#include "json.hpp"
 
+#include "avl_tree.h"
+#include "heap.h"
 
+using json = nlohmann::json;
 
 Leaderboard::Leaderboard()
 {
     nextId = 1;
-
-    //srand(time(0));
 
     vector<string> names = {
         "Shadow","Nova","Dragon","Phantom","Cyber","Dark","Ice","Storm","Blaze","Night",
@@ -27,19 +29,24 @@ Leaderboard::Leaderboard()
         "Blade","Sword","Arrow","Hammer","Axe","Dagger","Claw","Fang","Spike","Edge"
     };
 
-    for(int i = 0; i < 120; i++)
+    for(int i = 0; i < 1000; i++)
     {
         string name = names[rand() % names.size()] + to_string(rand() % 100);
-
         int score = rand() % 2000;
 
         addPlayer(name, score);
     }
 }
 
+
+// ==========================
+// ADD PLAYER
+// ==========================
+
 Player Leaderboard::addPlayer(string username,int score)
 {
     Player p;
+
     p.id = nextId++;
     p.username = username;
     p.score = score;
@@ -50,7 +57,8 @@ Player Leaderboard::addPlayer(string username,int score)
     playerIndex[p.id] = players.size()-1;
 
     // Activity
-    activityLog.addActivity(username + " joined with score " + to_string(score));
+    activityLog.insert(activityLog.begin(),
+        username + " joined with score " + to_string(score));
 
     // Add to AVL Tree
     avlTree.insert(p);
@@ -62,15 +70,14 @@ Player Leaderboard::addPlayer(string username,int score)
 }
 
 
-
 // ==========================
-// SEARCH PLAYER BY ID (HASH TABLE)
+// SEARCH PLAYER BY ID
 // ==========================
 
 Player Leaderboard::getPlayerById(int id)
 {
     if(playerIndex.find(id) == playerIndex.end())
-        return Player();   // return empty player
+        return Player();
 
     int index = playerIndex[id];
 
@@ -109,7 +116,7 @@ vector<Player> Leaderboard::getLeaderboard()
     sort(copy.begin(),copy.end(),
         [](Player a,Player b)
         {
-            return a.score>b.score;
+            return a.score > b.score;
         });
 
     return copy;
@@ -137,10 +144,12 @@ vector<Player> Leaderboard::getTopPlayers(int n)
 
 vector<string> Leaderboard::getActivity()
 {
-    if(activityLog.size()>10)
-        activityLog.resize(10);
+    vector<string> copy = activityLog;
 
-    return activityLog;
+    if(copy.size()>10)
+        copy.resize(10);
+
+    return copy;
 }
 
 
@@ -158,7 +167,7 @@ int Leaderboard::topScore()
     int maxScore = 0;
 
     for(auto &p:players)
-        if(p.score>maxScore)
+        if(p.score > maxScore)
             maxScore = p.score;
 
     return maxScore;
@@ -169,12 +178,12 @@ double Leaderboard::avgScore()
     if(players.empty())
         return 0;
 
-    int sum=0;
+    int sum = 0;
 
     for(auto &p:players)
         sum += p.score;
 
-    return (double)sum/players.size();
+    return (double)sum / players.size();
 }
 
 
@@ -197,4 +206,21 @@ void Leaderboard::simulateRandomUpdate()
         " random update " + to_string(change);
 
     activityLog.insert(activityLog.begin(),msg);
+}
+
+// ==========================
+// DATA STRUCTURE STATS
+// ==========================
+
+json Leaderboard::getDataStructureStats()
+{
+    json stats = {
+        {"totalPlayers", (int)players.size()},
+        {"avlTreeHeight", avlTree.getHeight()},
+        {"maxHeapSize", maxHeap.size()},
+        {"hashTableSize", (int)playerIndex.size()},
+        {"activityLogSize", (int)activityLog.size()}
+    };
+
+    return stats;
 }

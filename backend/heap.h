@@ -2,7 +2,7 @@
 #define HEAP_H
 
 #include <vector>
-#include "leaderboard.h"
+#include "player.h"
 
 using namespace std;
 

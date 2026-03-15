@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 DYNAMIC MULTIPLAYER LEADERBOARD - Player Network</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <h2>🎮 DYNAMIC MULTIPLAYER LEADERBOARD</h2>
+            <nav>
+                <a href="index.html" class="nav-link">Dashboard</a>
+                <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+                <a href="network.html" class="nav-link active">Player Network</a>
+                <a href="activity.html" class="nav-link">Activity Feed</a>
+                <a href="datastructures.html" class="nav-link">Data Structures</a>
+            </nav>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <header class="page-header">
+                <h1>Player Network Graph</h1>
+                <p>Interactive visualization of player connections and relationships</p>
+            </header>
+
+            <!-- NETWORK GRAPH -->
+            <div class="card network-card">
+                <div class="card-header">
+                    <h3>🔗 PLAYER CONNECTIONS</h3>
+                    <div class="network-controls">
+                        <button id="refresh-network-btn" class="btn secondary">🔄 Refresh</button>
+                    </div>
+                </div>
+                <div class="network-container" id="network-container">
+                    <svg id="network-svg" width="100%" height="600"></svg>
+                    <div class="network-placeholder">
+                        <div class="placeholder-content">
+                            <h4>Network Graph Loading...</h4>
+                            <p>D3.js visualization will display player relationships and connections.</p>
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NETWORK STATS -->
+            <div class="stats-grid">
+                <div class="card stat-card">
+                    <div class="card-icon">🔗</div>
+                    <div class="card-content">
+                        <h3>Connections</h3>
+                        <div class="stat-value" id="network-connections">0</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-icon">👥</div>
+                    <div class="card-content">
+                        <h3>Isolated Players</h3>
+                        <div class="stat-value" id="isolated-players">0</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-icon">🌐</div>
+                    <div class="card-content">
+                        <h3>Clusters</h3>
+                        <div class="stat-value" id="network-clusters">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="network.js"></script>
+</body>
+</html>

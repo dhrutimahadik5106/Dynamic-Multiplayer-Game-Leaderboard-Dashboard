@@ -4,15 +4,13 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include "player.h"
+#include "avl_tree.h"
+#include "heap.h"
+#include "json.hpp"
 
 using namespace std;
-
-struct Player
-{
-    int id;
-    string username;
-    int score;
-};
+using json = nlohmann::json;
 
 class Leaderboard
 {
@@ -27,6 +25,10 @@ private:
     vector<string> activityLog;
 
     int nextId;
+
+    AVLTree avlTree;
+    MaxHeap maxHeap;
+
 
 public:
 
@@ -51,6 +53,8 @@ public:
     double avgScore();
 
     void simulateRandomUpdate();
+
+    json getDataStructureStats();
 };
 
 #endif

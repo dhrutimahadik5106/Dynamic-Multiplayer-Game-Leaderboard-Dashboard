@@ -4,6 +4,25 @@
 
 using namespace std;
 
+/*-------------------------------------------------------
+    Player Comparison Helpers
+-------------------------------------------------------*/
+
+bool isLess(Player a, Player b)
+{
+    if (a.score != b.score)
+        return a.score < b.score;
+
+    return a.id < b.id;
+}
+
+bool isGreater(Player a, Player b)
+{
+    if (a.score != b.score)
+        return a.score > b.score;
+
+    return a.id > b.id;
+}
 
 /*-------------------------------------------------------
     Constructor
@@ -14,19 +33,17 @@ AVLTree::AVLTree()
     root = nullptr;
 }
 
-
 /*-------------------------------------------------------
     Get Height
 -------------------------------------------------------*/
 
 int AVLTree::height(Node* node)
 {
-    if(node == nullptr)
+    if (node == nullptr)
         return 0;
 
     return node->height;
 }
-
 
 /*-------------------------------------------------------
     Balance Factor
@@ -34,12 +51,11 @@ int AVLTree::height(Node* node)
 
 int AVLTree::getBalance(Node* node)
 {
-    if(node == nullptr)
+    if (node == nullptr)
         return 0;
 
     return height(node->left) - height(node->right);
 }
-
 
 /*-------------------------------------------------------
     Right Rotation
@@ -59,7 +75,6 @@ Node* AVLTree::rotateRight(Node* y)
     return x;
 }
 
-
 /*-------------------------------------------------------
     Left Rotation
 -------------------------------------------------------*/
@@ -78,20 +93,19 @@ Node* AVLTree::rotateLeft(Node* x)
     return y;
 }
 
-
 /*-------------------------------------------------------
     Insert Player
 -------------------------------------------------------*/
 
 Node* AVLTree::insertNode(Node* node, Player player)
 {
-    if(node == nullptr)
+    if (node == nullptr)
         return new Node(player);
 
-    if(player.score < node->player.score)
+    if (isLess(player, node->player))
         node->left = insertNode(node->left, player);
 
-    else if(player.score > node->player.score)
+    else if (isGreater(player, node->player))
         node->right = insertNode(node->right, player);
 
     else
@@ -101,24 +115,23 @@ Node* AVLTree::insertNode(Node* node, Player player)
 
     int balance = getBalance(node);
 
-
-    /* Left Left */
-    if(balance > 1 && player.score < node->left->player.score)
+    // Left Left
+    if (balance > 1 && isLess(player, node->left->player))
         return rotateRight(node);
 
-    /* Right Right */
-    if(balance < -1 && player.score > node->right->player.score)
+    // Right Right
+    if (balance < -1 && isGreater(player, node->right->player))
         return rotateLeft(node);
 
-    /* Left Right */
-    if(balance > 1 && player.score > node->left->player.score)
+    // Left Right
+    if (balance > 1 && isGreater(player, node->left->player))
     {
         node->left = rotateLeft(node->left);
         return rotateRight(node);
     }
 
-    /* Right Left */
-    if(balance < -1 && player.score < node->right->player.score)
+    // Right Left
+    if (balance < -1 && isLess(player, node->right->player))
     {
         node->right = rotateRight(node->right);
         return rotateLeft(node);
@@ -126,7 +139,6 @@ Node* AVLTree::insertNode(Node* node, Player player)
 
     return node;
 }
-
 
 /*-------------------------------------------------------
     Find Minimum Node
@@ -136,35 +148,34 @@ Node* AVLTree::minValueNode(Node* node)
 {
     Node* current = node;
 
-    while(current->left != nullptr)
+    while (current->left != nullptr)
         current = current->left;
 
     return current;
 }
 
-
 /*-------------------------------------------------------
     Delete Player
 -------------------------------------------------------*/
 
-Node* AVLTree::deleteNode(Node* root, int score)
+Node* AVLTree::deleteNode(Node* root, Player player)
 {
-    if(root == nullptr)
+    if (root == nullptr)
         return root;
 
-    if(score < root->player.score)
-        root->left = deleteNode(root->left, score);
+    if (isLess(player, root->player))
+        root->left = deleteNode(root->left, player);
 
-    else if(score > root->player.score)
-        root->right = deleteNode(root->right, score);
+    else if (isGreater(player, root->player))
+        root->right = deleteNode(root->right, player);
 
     else
     {
-        if((root->left == nullptr) || (root->right == nullptr))
+        if ((root->left == nullptr) || (root->right == nullptr))
         {
             Node* temp = root->left ? root->left : root->right;
 
-            if(temp == nullptr)
+            if (temp == nullptr)
             {
                 temp = root;
                 root = nullptr;
@@ -180,34 +191,34 @@ Node* AVLTree::deleteNode(Node* root, int score)
 
             root->player = temp->player;
 
-            root->right = deleteNode(root->right, temp->player.score);
+            root->right = deleteNode(root->right, temp->player);
         }
     }
 
-    if(root == nullptr)
+    if (root == nullptr)
         return root;
 
     root->height = 1 + max(height(root->left), height(root->right));
 
     int balance = getBalance(root);
 
-    /* Left Left */
-    if(balance > 1 && getBalance(root->left) >= 0)
+    // Left Left
+    if (balance > 1 && getBalance(root->left) >= 0)
         return rotateRight(root);
 
-    /* Left Right */
-    if(balance > 1 && getBalance(root->left) < 0)
+    // Left Right
+    if (balance > 1 && getBalance(root->left) < 0)
     {
         root->left = rotateLeft(root->left);
         return rotateRight(root);
     }
 
-    /* Right Right */
-    if(balance < -1 && getBalance(root->right) <= 0)
+    // Right Right
+    if (balance < -1 && getBalance(root->right) <= 0)
         return rotateLeft(root);
 
-    /* Right Left */
-    if(balance < -1 && getBalance(root->right) > 0)
+    // Right Left
+    if (balance < -1 && getBalance(root->right) > 0)
     {
         root->right = rotateRight(root->right);
         return rotateLeft(root);
@@ -215,7 +226,6 @@ Node* AVLTree::deleteNode(Node* root, int score)
 
     return root;
 }
-
 
 /*-------------------------------------------------------
     Public Insert
@@ -226,24 +236,22 @@ void AVLTree::insert(Player player)
     root = insertNode(root, player);
 }
 
-
 /*-------------------------------------------------------
     Public Delete
 -------------------------------------------------------*/
 
-void AVLTree::remove(int score)
+void AVLTree::remove(Player player)
 {
-    root = deleteNode(root, score);
+    root = deleteNode(root, player);
 }
 
-
 /*-------------------------------------------------------
-    Inorder Traversal (Sorted Leaderboard)
+    Inorder Traversal (Leaderboard)
 -------------------------------------------------------*/
 
 void AVLTree::inorder(Node* node, vector<Player>& players)
 {
-    if(node == nullptr)
+    if (node == nullptr)
         return;
 
     inorder(node->right, players);
@@ -252,7 +260,6 @@ void AVLTree::inorder(Node* node, vector<Player>& players)
 
     inorder(node->left, players);
 }
-
 
 /*-------------------------------------------------------
     Get Sorted Players
@@ -265,4 +272,13 @@ vector<Player> AVLTree::getSortedPlayers()
     inorder(root, players);
 
     return players;
+}
+
+/*-------------------------------------------------------
+    Get Tree Height
+-------------------------------------------------------*/
+
+int AVLTree::getHeight()
+{
+    return height(root);
 }

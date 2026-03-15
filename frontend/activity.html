@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 DYNAMIC MULTIPLAYER LEADERBOARD - Activity Feed</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- SIDEBAR -->
+        <div class="sidebar">
+            <h2>🎮 DYNAMIC MULTIPLAYER LEADERBOARD</h2>
+            <nav>
+                <a href="index.html" class="nav-link">Dashboard</a>
+                <a href="leaderboard.html" class="nav-link">Leaderboard</a>
+                <a href="network.html" class="nav-link">Player Network</a>
+                <a href="activity.html" class="nav-link active">Activity Feed</a>
+                <a href="stats.html" class="nav-link">Game Stats</a>
+            </nav>
+        </div>
+
+        <!-- MAIN CONTENT -->
+        <div class="main-content">
+            <header class="page-header">
+                <h1>Activity Feed</h1>
+                <p>Real-time game events and player activities</p>
+            </header>
+
+            <!-- ACTIVITY CONTROLS -->
+            <div class="card controls-card">
+                <div class="activity-filters">
+                    <button class="filter-btn active" data-filter="all">All Events</button>
+                    <button class="filter-btn" data-filter="score">Score Changes</button>
+                    <button class="filter-btn" data-filter="player">New Players</button>
+                    <button class="filter-btn" data-filter="match">Matches</button>
+                </div>
+                <div class="control-buttons">
+                    <button id="clear-activity-btn" class="btn secondary">🗑️ Clear</button>
+                    <button id="refresh-activity-btn" class="btn primary">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <!-- ACTIVITY FEED -->
+            <div class="card activity-card">
+                <div class="card-header">
+                    <h3>🕐 LIVE ACTIVITY</h3>
+                    <div class="live-indicator">
+                        <span class="dot"></span>
+                        LIVE
+                    </div>
+                </div>
+                <div class="activity-feed-full" id="activity-feed">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+
+            <!-- ACTIVITY STATS -->
+            <div class="stats-grid">
+                <div class="card stat-card">
+                    <div class="card-icon">⚡</div>
+                    <div class="card-content">
+                        <h3>Events Today</h3>
+                        <div class="stat-value" id="events-today">0</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-icon">📈</div>
+                    <div class="card-content">
+                        <h3>Score Changes</h3>
+                        <div class="stat-value" id="score-changes">0</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-icon">👤</div>
+                    <div class="card-content">
+                        <h3>New Players</h3>
+                        <div class="stat-value" id="new-players">0</div>
+                    </div>
+                </div>
+
+                <div class="card stat-card">
+                    <div class="card-icon">🏆</div>
+                    <div class="card-content">
+                        <h3>Matches Played</h3>
+                        <div class="stat-value" id="matches-played">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
