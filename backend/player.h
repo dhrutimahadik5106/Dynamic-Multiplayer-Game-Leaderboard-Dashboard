@@ -1,8 +1,5 @@
-#ifndef PLAYER_H
-#define PLAYER_H
-
+#pragma once
 #include <string>
-
 using namespace std;
 
 struct Player
@@ -10,6 +7,11 @@ struct Player
     int id;
     string username;
     int score;
-};
 
-#endif
+    Player()
+    {
+        id = 0;
+        username = "";
+        score = 0;
+    }
+};

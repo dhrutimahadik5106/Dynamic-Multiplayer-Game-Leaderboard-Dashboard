@@ -55,6 +55,8 @@ public:
     void simulateRandomUpdate();
 
     json getDataStructureStats();
+
+    json getNetworkData();
 };
 
 #endif

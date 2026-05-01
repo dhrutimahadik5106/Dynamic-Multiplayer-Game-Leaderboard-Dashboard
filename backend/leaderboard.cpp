@@ -224,3 +224,43 @@ json Leaderboard::getDataStructureStats()
 
     return stats;
 }
+
+// ==========================
+// NETWORK DATA
+// ==========================
+
+json Leaderboard::getNetworkData()
+{
+    json result;
+
+    // Nodes: top 50 players
+    json nodes = json::array();
+    auto topPlayers = getTopPlayers(50);
+    int rank = 1;
+    for (auto &p : topPlayers) {
+        nodes.push_back({
+            {"id", p.id},
+            {"name", p.username},
+            {"score", p.score},
+            {"rank", rank++}
+        });
+    }
+    result["nodes"] = nodes;
+
+    // Links: simulate connections between players
+    // For simplicity, connect players with similar ranks (close in leaderboard)
+    json links = json::array();
+    for (size_t i = 0; i < topPlayers.size(); ++i) {
+        for (size_t j = i + 1; j < topPlayers.size() && j < i + 3; ++j) {  // connect to next 2
+            int value = rand() % 10 + 1;  // random value 1-10
+            links.push_back({
+                {"source", topPlayers[i].id},
+                {"target", topPlayers[j].id},
+                {"value", value}
+            });
+        }
+    }
+    result["links"] = links;
+
+    return result;
+}
