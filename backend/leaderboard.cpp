@@ -58,7 +58,7 @@ Player Leaderboard::addPlayer(string username,int score)
 
     // Activity
     activityLog.insert(activityLog.begin(),
-        username + " joined with score " + to_string(score));
+        username + " joined leaderboard with " + to_string(score) + " points");
 
     // Add to AVL Tree
     avlTree.insert(p);
@@ -202,8 +202,16 @@ void Leaderboard::simulateRandomUpdate()
 
     players[index].score += change;
 
-    string msg = players[index].username +
-        " random update " + to_string(change);
+    string action;
+    if (change > 0) {
+        action = "gained +" + to_string(change) + " points";
+    } else if (change < 0) {
+        action = "lost " + to_string(abs(change)) + " points";
+    } else {
+        action = "score unchanged";
+    }
+
+    string msg = players[index].username + " " + action;
 
     activityLog.insert(activityLog.begin(),msg);
 }

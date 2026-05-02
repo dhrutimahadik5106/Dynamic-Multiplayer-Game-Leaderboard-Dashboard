@@ -1,355 +1,403 @@
 // =============================
 // NAVIGATION SYSTEM
 // =============================
-
 function initNavigation() {
-    // Set active navigation link based on current page
     const currentPath = window.location.pathname;
     const currentPage = currentPath.split('/').pop().replace('.html', '') || 'index';
 
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
-        const href = link.getAttribute('href');
-        const linkPage = href.replace('.html', '');
-
-        if (linkPage === currentPage || (currentPage === 'index' && linkPage === 'index.html')) {
+        const href = link.getAttribute('href').replace('.html', '');
+        if (href === currentPage) {
             link.classList.add('active');
         }
     });
 }
 
-function navigateToPage(pageName) {
-    // For multi-page application, we use regular browser navigation
-    if (pageName === 'index') {
-        window.location.href = 'index.html';
-    } else {
-        window.location.href = `${pageName}.html`;
-    }
-}
-
 // =============================
 // GLOBAL VARIABLES
 // =============================
-
 let leaderboardData = [];
-let activityData = [];
-let statsData = {};
 let updateInterval;
+let dashboardInterval;
+let activityInterval;
+let previousPlayerPositions = new Map(); // Track previous positions for animation
 
-const API_BASE = "http://localhost:8080";
+const API_BASE = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'http://localhost:8080';
 
-// =============================
-// MATCH HISTORY QUEUE
-// =============================
-
-let matchHistoryQueue = [];
-const MAX_HISTORY = 20;
-
-function enqueueMatchHistory(activity){
-
-    matchHistoryQueue.push(activity);
-
-    if(matchHistoryQueue.length > MAX_HISTORY){
-        matchHistoryQueue.shift(); // dequeue oldest
-    }
+function isDashboardPage() {
+    return !!document.getElementById('top-players') && !!document.getElementById('activity-feed');
 }
-
-async function refreshDashboard(){
-
-    await fetchLeaderboard();
-    await fetchRecentActivity();
-
-}
-
-
-// =============================
-// MODAL HELPERS
-// =============================
-
-function openModal() {
-    const modal = document.getElementById("player-modal");
-    if (!modal) return;
-    modal.classList.add("open");
-}
-
-function closeModal() {
-    const modal = document.getElementById("player-modal");
-    if (!modal) return;
-    modal.classList.remove("open");
-}
-
-
-// =============================
-// LOAD FUNCTIONS
-// =============================
-
-function loadLeaderboard() {
-    fetchLeaderboard();
-}
-
-function loadStats() {
-    updateQuickStats(leaderboardData);
-}
-
-
-// =============================
-// INITIALIZE
-// =============================
-
-document.addEventListener("DOMContentLoaded", function () {
-
-    fetchLeaderboard();
-    fetchRecentActivity();
-
-    startAutoRefresh();
-    setupEventListeners();
-
-    // Auto-refresh leaderboard and stats every 30 seconds
-    setInterval(() => {
-        loadLeaderboard();
-        loadStats();
-    }, 30000);
-});
-
-
-// =============================
-// EVENT LISTENERS
-// =============================
-
-function setupEventListeners() {
-
-    const addBtn = document.getElementById("add-player-btn");
-    const modalAddBtn = document.getElementById("modal-add-player-btn");
-    const simulateBtn = document.getElementById("simulate-update-btn");
-    const refreshBtn = document.getElementById("refresh-btn");
-    const searchInput = document.getElementById("search-player");
-    const addForm = document.getElementById("add-player-form");
-    const closeBtn = document.getElementById("player-modal").querySelector(".close");
-
-    if(addBtn)
-        addBtn.addEventListener("click", () => {
-            openModal();
-        });
-
-    if(addForm)
-        addForm.addEventListener("submit", function(e) {
-            e.preventDefault();
-            addNewPlayer();
-        });
-
-    if(modalAddBtn)
-        modalAddBtn.addEventListener("click", () => {
-            addNewPlayer();
-        });
-
-    if(closeBtn)
-        closeBtn.addEventListener("click", () => {
-            closeModal();
-        });
-
-    if(simulateBtn)
-        simulateBtn.addEventListener("click", simulateRandomUpdate);
-
-    if(refreshBtn)
-        refreshBtn.addEventListener("click", () => {
-            fetchLeaderboard();
-            fetchRecentActivity();
-        });
-
-    if(searchInput)
-        searchInput.addEventListener("input", function(e){
-            filterLeaderboard(e.target.value);
-        });
-
-}
-
-
-// =============================
-// FETCH LEADERBOARD
-// =============================
 
 async function fetchLeaderboard() {
-
     try {
+        const leaderboardCard = document.querySelector('.leaderboard-card');
+        if (leaderboardCard) {
+            leaderboardCard.classList.add('updating');
+        }
 
         const response = await fetch(`${API_BASE}/leaderboard`);
         const data = await response.json();
 
+        console.log(`🔄 Leaderboard fetch: ${data.length} players`);
+        console.log(`📊 Top 3: ${data.slice(0,3).map(p => `${p.username}:${p.score}`).join(', ')}`);
+
         leaderboardData = data;
 
-        updateLeaderboardDisplay(data);
-        updateQuickStats(data);
+        updateLeaderboardDisplay(leaderboardData);
+        updateQuickStats(leaderboardData);
+        updateTopPlayers(leaderboardData.slice(0, 5));
+
+        updateLastUpdated();
+
+        setTimeout(() => {
+            if (leaderboardCard) {
+                leaderboardCard.classList.remove('updating');
+            }
+        }, 500);
 
     } catch (error) {
-
-        console.error("Leaderboard fetch error:", error);
+        console.error("❌ Leaderboard fetch error:", error);
+        const leaderboardCard = document.querySelector('.leaderboard-card');
+        if (leaderboardCard) {
+            leaderboardCard.classList.remove('updating');
+        }
     }
 }
 
-
-// =============================
-// FETCH STATS
-// =============================
-
-async function fetchStats() {
-
+async function fetchDashboardStats() {
     try {
-
         const response = await fetch(`${API_BASE}/stats`);
-        const data = await response.json();
+        if (!response.ok) throw new Error(`Stats HTTP ${response.status}`);
+        const stats = await response.json();
 
-        statsData = data.stats;
+        const totalEl = document.getElementById('total-players');
+        const topEl = document.getElementById('top-score');
+        const avgEl = document.getElementById('avg-score');
+        const activeEl = document.getElementById('active-matches');
 
-        updateStatsDisplay(data.stats);
+        if (totalEl) totalEl.innerText = stats.totalPlayers ?? 0;
+        if (topEl) topEl.innerText = stats.topScore ?? 0;
+        if (avgEl) avgEl.innerText = Math.round(stats.avgScore ?? 0);
+        if (activeEl) activeEl.innerText = stats.activeMatches ?? 0;
 
+        console.log('Stats refreshed', stats);
     } catch (error) {
-
-        console.error("Stats fetch error:", error);
+        console.error('Stats fetch error:', error);
     }
 }
 
+async function fetchTopPlayers() {
+    try {
+        const response = await fetch(`${API_BASE}/topPlayers`);
+        if (!response.ok) throw new Error(`Top players HTTP ${response.status}`);
+        const players = await response.json();
+        updateTopPlayers(Array.isArray(players) ? players : []);
+    } catch (error) {
+        console.error('Top players fetch error:', error);
+    }
+}
+
+async function fetchDashboard() {
+    await Promise.all([
+        fetchDashboardStats(),
+        fetchTopPlayers(),
+        fetchRecentActivity()
+    ]);
+}
+
+function openPlayerModal() {
+    const modal = document.getElementById('player-modal');
+    if (!modal) return;
+    modal.classList.add('open');
+    setTimeout(() => {
+        document.getElementById('player-name')?.focus();
+    }, 100);
+}
+
+function closePlayerModal() {
+    const modal = document.getElementById('player-modal');
+    if (!modal) return;
+    modal.classList.remove('open');
+}
 
 // =============================
-// UPDATE LEADERBOARD TABLE
+// UPDATE TIMESTAMP
 // =============================
+function updateLastUpdated() {
+    const updateTimeEl = document.getElementById('update-time');
+    if (updateTimeEl) {
+        const now = new Date();
+        const timeString = now.toLocaleTimeString();
+        updateTimeEl.textContent = timeString;
+    }
+}
 
+// =============================
+// FETCH ACTIVITY
+// =============================
+async function fetchRecentActivity() {
+    try {
+        const response = await fetch(`${API_BASE}/activity`);
+        if (!response.ok) throw new Error(`Activity HTTP ${response.status}`);
+        const data = await response.json();
+        updateActivityFeed(Array.isArray(data) ? data : []);
+        console.log("Activity feed updated", Array.isArray(data) ? data.length : 0, "items");
+
+    } catch (error) {
+        console.error("Activity fetch error:", error);
+    }
+}
+
+// =============================
+// UPDATE TABLE
+// =============================
 function updateLeaderboardDisplay(players) {
 
     const tbody = document.getElementById("leaderboard-body");
+    if (!tbody) {
+        console.warn("⚠️ No leaderboard-body found");
+        return;
+    }
 
-    if(!tbody) return;
+    console.log(`🎯 Updating leaderboard display: ${players.length} players`);
 
-    // Sort players by score descending
-    players.sort((a, b) => b.score - a.score);
+    const rowHeight = 50; // Approximate row height
 
-    // Assume fixed row height for animation
-    const rowHeight = 60; // approximate height in px
-
-    // Get current rows
-    const currentRows = Array.from(tbody.children);
-
-    // Map player.id to existing row
-    const rowMap = {};
-    currentRows.forEach(row => {
-        const id = row.id.replace('player-', '');
-        rowMap[id] = row;
+    // Store current DOM positions BEFORE any changes
+    const currentDomPositions = new Map();
+    tbody.querySelectorAll('.player-row').forEach((row, index) => {
+        const playerId = parseInt(row.dataset.playerId);
+        currentDomPositions.set(playerId, index);
     });
 
-    // Create or update rows in new order
-    const newOrder = [];
-    players.forEach((player, index) => {
-        let row = rowMap[player.id];
+    // Create a map of existing rows by player ID
+    const existingRows = new Map();
+    tbody.querySelectorAll('.player-row').forEach(row => {
+        const playerId = parseInt(row.dataset.playerId);
+        existingRows.set(playerId, row);
+    });
+
+    // Track score changes for highlighting
+    const scoreChanges = new Map();
+
+    // Update or create rows
+    players.forEach((player, newIndex) => {
+        const playerId = player.id;
+        const oldDomIndex = currentDomPositions.get(playerId);
+        let row = existingRows.get(playerId);
+
         if (!row) {
-            row = document.createElement("tr");
-            row.className = "player-row";
-            row.id = `player-${player.id}`;
-            row.style.transition = "transform 0.5s ease";
-            tbody.appendChild(row); // append to end initially
+            // Create new row
+            row = createPlayerRow(player, newIndex + 1);
+            row.classList.add('new-row');
+            tbody.appendChild(row);
+            // Remove animation class after it completes
+            setTimeout(() => row.classList.remove('new-row'), 600);
+        } else {
+            // Update existing row content
+            const oldScore = parseInt(row.querySelector('.score-cell').textContent.replace(/[^\d-]/g, ''));
+            updateRowContent(row, player, newIndex + 1);
+
+            // Track score change for highlighting
+            if (!isNaN(oldScore) && oldScore !== player.score) {
+                scoreChanges.set(playerId, player.score - oldScore);
+            }
         }
 
-        // Update content
-        let rankDisplay = "#" + (index + 1);
-        if (index === 0) rankDisplay = "🥇";
-        else if (index === 1) rankDisplay = "🥈";
-        else if (index === 2) rankDisplay = "🥉";
+        // Set data attributes
+        row.dataset.playerId = playerId;
+        row.dataset.rank = newIndex + 1;
 
-        row.className = "player-row";
-        if (index === 0) row.classList.add("rank-1");
-        if (index === 1) row.classList.add("rank-2");
-        if (index === 2) row.classList.add("rank-3");
+        // Calculate and apply movement animation
+        if (oldDomIndex !== undefined && oldDomIndex !== newIndex) {
+            const deltaY = (oldDomIndex - newIndex) * rowHeight;
+            console.log(`🎬 Animating ${player.username}: position ${oldDomIndex} → ${newIndex} (delta: ${deltaY}px)`);
+            row.style.transform = `translateY(${deltaY}px)`;
+            row.style.transition = 'transform 0.6s ease';
 
-        row.innerHTML = `
-        <td>${rankDisplay}</td>
-        <td>${player.username}</td>
-        <td class="score-cell">${player.score}</td>
-        <td class="change-cell">
-            <span class="change-neutral">—</span>
-        </td>
-        <td class="status-online">${player.status || "online"}</td>
-        <td>
-            <button class="btn-score" onclick="updatePlayerScore(${player.id},10)">+10</button>
-            <button class="btn-score" onclick="updatePlayerScore(${player.id},-5)">-5</button>
-        </td>
-        `;
-
-        newOrder.push(row);
+            // Reset transform after animation
+            setTimeout(() => {
+                row.style.transform = '';
+                row.style.transition = '';
+            }, 600);
+        }
     });
 
-    // Calculate current positions and set transforms for animation
-    newOrder.forEach((row, newIndex) => {
-        const currentIndex = Array.from(tbody.children).indexOf(row);
-        const deltaY = (currentIndex - newIndex) * rowHeight;
-        row.style.transform = `translateY(${deltaY}px)`;
-    });
-
-    // After animation, reorder DOM and reset transforms
+    // Reorder DOM after all animations are set up
     setTimeout(() => {
-        tbody.innerHTML = "";
-        newOrder.forEach(row => {
-            row.style.transform = "";
-            tbody.appendChild(row);
+        const allRows = Array.from(tbody.children);
+        const sortedRows = allRows.sort((a, b) => {
+            const rankA = parseInt(a.dataset.rank) || 999;
+            const rankB = parseInt(b.dataset.rank) || 999;
+            return rankA - rankB;
         });
-    }, 500); // match transition duration
 
-    updateTopPlayers(players.slice(0, 5));
+        // Rebuild tbody with sorted rows
+        tbody.innerHTML = '';
+        sortedRows.forEach(r => tbody.appendChild(r));
+    }, 650);
+
+    // Apply score change highlights
+    scoreChanges.forEach((change, playerId) => {
+        const row = existingRows.get(playerId);
+        if (row) {
+            const scoreCell = row.querySelector('.score-cell');
+            if (scoreCell) {
+                if (change > 0) {
+                    scoreCell.classList.add('score-up');
+                    setTimeout(() => scoreCell.classList.remove('score-up'), 1000);
+                } else if (change < 0) {
+                    scoreCell.classList.add('score-down');
+                    setTimeout(() => scoreCell.classList.remove('score-down'), 1000);
+                }
+            }
+        }
+    });
+
+    // Remove rows for players no longer in list
+    existingRows.forEach((row, playerId) => {
+        if (!players.some(p => p.id === playerId)) {
+            row.style.opacity = '0';
+            setTimeout(() => {
+                if (row.parentNode) row.parentNode.removeChild(row);
+            }, 300);
+        }
+    });
+
+    // Update previous positions for next animation cycle
+    previousPlayerPositions.clear();
+    players.forEach((player, index) => {
+        previousPlayerPositions.set(player.id, index);
+    });
 }
 
+function createPlayerRow(player, rank) {
+    const row = document.createElement("tr");
+    row.className = "player-row";
+
+    row.innerHTML = `
+        <td class="rank-cell">#${rank}</td>
+        <td class="player-name">${player.username}</td>
+        <td class="score-cell">${player.score}</td>
+        <td class="change-cell">—</td>
+        <td>online</td>
+        <td>
+            <button onclick="updatePlayerScore(${player.id},10)">+10</button>
+            <button onclick="updatePlayerScore(${player.id},-5)">-5</button>
+        </td>
+    `;
+
+    return row;
+}
+
+function updateRowContent(row, player, rank) {
+    const cells = row.querySelectorAll('td');
+    if (cells.length >= 3) {
+        cells[0].textContent = `#${rank}`;
+        cells[1].textContent = player.username;
+        cells[2].textContent = player.score;
+    }
+}
+
+function createFloatingScoreChange(row, change, direction) {
+    const scoreCell = row.querySelector('.score-cell');
+    if (!scoreCell) return;
+
+    const floatDiv = document.createElement('div');
+    floatDiv.className = `score-change-float ${direction}`;
+    floatDiv.textContent = change > 0 ? `+${change}` : change;
+    floatDiv.style.left = `${scoreCell.offsetLeft + scoreCell.offsetWidth / 2}px`;
+    floatDiv.style.top = `${scoreCell.offsetTop}px`;
+
+    row.style.position = 'relative';
+    row.appendChild(floatDiv);
+
+    setTimeout(() => {
+        if (floatDiv.parentNode) {
+            floatDiv.parentNode.removeChild(floatDiv);
+        }
+    }, 1500);
+}
 
 // =============================
-// TOP PLAYERS PANEL
+// TOP PLAYERS
 // =============================
+let previousTopPlayers = [];
 
 function updateTopPlayers(players) {
-
     const container = document.getElementById("top-players");
+    if (!container) return;
 
-    if(!container) return;
+    const changes = players.map((p, index) => {
+        const prev = previousTopPlayers[index];
+        return {
+            player: p,
+            changed: !prev || prev.id !== p.id || prev.score !== p.score,
+            scoreChange: prev ? p.score - prev.score : 0
+        };
+    });
 
+    previousTopPlayers = [...players];
     container.innerHTML = "";
 
-    players.forEach((p,index)=>{
+    players.forEach((p, index) => {
+        const row = document.createElement("div");
+        row.className = "top-player-item";
 
-        let badge = "#" + (index+1);
+        const badge = document.createElement("span");
+        badge.textContent = index < 3 ? ["🥇", "🥈", "🥉"][index] : `#${index+1}`;
 
-        if(index === 0) badge = "🥇";
-        else if(index === 1) badge = "🥈";
-        else if(index === 2) badge = "🥉";
+        const name = document.createElement("span");
+        name.textContent = p.username;
 
-        const card = document.createElement("div");
+        const score = document.createElement("span");
+        score.textContent = p.score;
 
-        card.className = "player-card";
+        row.appendChild(badge);
+        row.appendChild(name);
+        row.appendChild(score);
 
-        card.innerHTML = `
-        <div class="rank-badge">${badge}</div>
-        <div class="player-info">
-            <div class="player-name">${p.username}</div>
-            <div class="player-score">${p.score} pts</div>
-        </div>
-        `;
+        const change = changes[index];
+        if (change.changed && change.scoreChange !== 0) {
+            row.classList.add(change.scoreChange > 0 ? 'score-up' : 'score-down');
+            setTimeout(() => row.classList.remove('score-up', 'score-down'), 1000);
+        }
 
-        container.appendChild(card);
+        container.appendChild(row);
     });
-}
 
+    if (!players.length) {
+        container.innerHTML = '<div class="top-player-item">No players available yet</div>';
+    }
+
+    console.log("Top players updated");
+}
 
 // =============================
 // ACTIVITY FEED
 // =============================
 function updateActivityFeed(data) {
-
     const feed = document.getElementById("activity-feed");
-
-    if(!feed) return;
+    if (!feed) return;
 
     feed.innerHTML = "";
 
-    data.slice().reverse().forEach(item=>{
+    if (!data || !data.length) {
+        feed.innerHTML = '<div class="activity-item">No recent activity yet</div>';
+        return;
+    }
 
+    data.slice(0, 10).forEach(item => {
         const div = document.createElement("div");
-
         div.className = "activity-item";
+        div.textContent = item;
 
-        div.innerText = item;
+        if (/\+\d+|gained|won/i.test(item)) {
+            div.classList.add('activity-gain');
+        } else if (/\-|lost|lost/i.test(item)) {
+            div.classList.add('activity-loss');
+        }
 
         feed.appendChild(div);
     });
@@ -358,337 +406,171 @@ function updateActivityFeed(data) {
 // =============================
 // QUICK STATS
 // =============================
-
 function updateQuickStats(players) {
+    if (!players || !players.length) return;
 
-    if(players.length === 0) return;
+    const totalEl = document.getElementById("total-players");
+    const topEl = document.getElementById("top-score");
+    const avgEl = document.getElementById("avg-score");
 
-    document.getElementById("total-players").innerText = players.length;
-    document.getElementById("top-score").innerText = players[0].score;
+    if (totalEl) totalEl.innerText = players.length;
+    if (topEl) topEl.innerText = players[0].score;
 
     const avg = players.reduce((s,p)=> s+p.score,0)/players.length;
+    if (avgEl) avgEl.innerText = Math.round(avg);
 
-    document.getElementById("avg-score").innerText = Math.round(avg);
+    console.log("Stats updated - Total:", players.length, "Top:", players[0].score);
 }
-
 
 // =============================
 // ADD PLAYER
 // =============================
 async function addNewPlayer(){
-
-    const username = document.getElementById("player-name").value;
-    const score = parseInt(document.getElementById("initial-score").value);
+    const usernameInput = document.getElementById("player-name");
+    const scoreInput = document.getElementById("initial-score");
+    const username = usernameInput?.value.trim();
+    const score = parseInt(scoreInput?.value, 10);
 
     if(!username || isNaN(score)){
         alert("Enter valid player name and score");
         return;
     }
 
-    try{
-
+    try {
         const response = await fetch(`${API_BASE}/addPlayer`, {
-
             method:"POST",
+            headers:{ "Content-Type":"application/json" },
+            body:JSON.stringify({ username, score })
+        });
+        if (!response.ok) throw new Error(`Add player HTTP ${response.status}`);
 
-            headers:{
-                "Content-Type":"application/json"
-            },
+        console.log("Player added:", username, "score:", score);
+        closePlayerModal();
+        if (usernameInput) usernameInput.value = "";
+        if (scoreInput) scoreInput.value = "1000";
+        await fetchDashboard();
+        if (document.getElementById('leaderboard-body')) {
+            fetchLeaderboard();
+        }
+    } catch (error) {
+        console.error("Add player error:", error);
+        alert("Failed to add player");
+    }
+}
 
-            body:JSON.stringify({
-                username:username,
-                score:score
-            })
+// =============================
+// SIMULATE UPDATE
+// =============================
+async function simulateServerUpdate() {
+    try {
+        const response = await fetch(`${API_BASE}/simulate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" }
         });
 
-        if (!response.ok) {
-            console.error("Failed to add player", response.status);
-            return;
+        if (!response.ok) throw new Error(`Simulate HTTP ${response.status}`);
+        console.log('Simulate update triggered');
+        await fetchDashboard();
+        if (document.getElementById('leaderboard-body')) {
+            fetchLeaderboard();
         }
-
-        // close modal with transition
-        closeModal();
-
-        // clear input fields
-        document.getElementById("player-name").value = "";
-        document.getElementById("initial-score").value = "";
-
-        // refresh everything
-        await refreshDashboard();
-
-        // success toast
-        showScorePopup("Player added successfully");
-
-    }catch(error){
-
-        console.error("Add player error:",error);
+    } catch (error) {
+        console.error('Simulate update error:', error);
+        alert('Failed to simulate update');
     }
 }
 
 // =============================
 // UPDATE SCORE
 // =============================
-
-async function updatePlayerScore(playerId,change){
-
-    try{
-
-        await fetch(`${API_BASE}/update`,{
-
+async function updatePlayerScore(id,change){
+    try {
+        await fetch(`${API_BASE}/api/update`,{
             method:"POST",
-
-            headers:{
-                "Content-Type":"application/json"
-            },
-
+            headers:{ "Content-Type":"application/json" },
             body:JSON.stringify({
-                player_id:playerId,
+                player_id:id,
                 score_change:change
             })
         });
 
-        showScorePopup(change);
-
+        console.log("Score updated for player", id, "change:", change);
         fetchLeaderboard();
-        fetchRecentActivity();
-
-    }catch(error){
-
-        console.error("Score update error:",error);
+    } catch (error) {
+        console.error("Score update error:", error);
     }
 }
-
-
-// =============================
-// SCORE POPUP
-// =============================
-
-function showScorePopup(change){
-
-    const popup=document.createElement("div");
-
-    popup.className="score-popup";
-
-    popup.innerText=change>0?`+${change} Score`:`${change} Score`;
-
-    document.body.appendChild(popup);
-
-    setTimeout(()=>popup.remove(),1500);
-}
-
-
-// =============================
-// FILTER LEADERBOARD
-// =============================
-
-function filterLeaderboard(searchTerm) {
-    const tbody = document.getElementById("leaderboard-body");
-    if (!tbody) return;
-
-    const rows = tbody.querySelectorAll("tr");
-    const term = searchTerm.toLowerCase().trim();
-
-    rows.forEach(row => {
-        const playerName = row.cells[1]?.textContent.toLowerCase() || "";
-        if (term === "" || playerName.includes(term)) {
-            row.style.display = "";
-        } else {
-            row.style.display = "none";
-        }
-    });
-}
-
-    try{
-
-        await fetch(`${API_BASE}/simulate`,{
-            method:"POST"
-        });
-
-        fetchLeaderboard();
-        fetchRecentActivity();
-
-    }catch(error){
-
-        console.error("Simulation error:",error);
-    }
-}
-
 
 // =============================
 // SEARCH
 // =============================
-
-function filterLeaderboard(text){
-
-    const filtered = leaderboardData.filter(p =>
-        p.username.toLowerCase().includes(text.toLowerCase())
-    );
-
+function filterLeaderboard(text) {
+    const filtered = leaderboardData.filter(p => p.username.toLowerCase().includes(text.toLowerCase()));
     updateLeaderboardDisplay(filtered);
 }
 
-
 // =============================
-// AUTO REFRESH
+// EVENTS
 // =============================
-
-function startAutoRefresh(){
-
-    updateInterval = setInterval(()=>{
-
-        fetchLeaderboard();
-        fetchRecentActivity();
-
-    },10000);
-}
-
-
-// =============================
-// ADD PLAYER (RANDOM)
-// =============================
-
-async function addPlayer() {
-
-    const randomUsername = "Player" + Math.floor(Math.random() * 10000);
-    const randomScore = Math.floor(Math.random() * 1000);
-
-    try {
-
-        const response = await fetch(`${API_BASE}/addPlayer`, {
-
-            method: 'POST',
-
-            headers: {
-                'Content-Type': 'application/json'
-            },
-
-            body: JSON.stringify({
-                username: randomUsername,
-                score: randomScore
-            })
-
-        });
-
-        if (response.ok) {
-
-            await refreshDashboard();
-
+function setupEventListeners(){
+    document.getElementById("refresh-btn")?.addEventListener("click", () => {
+        if (isDashboardPage()) {
+            fetchDashboard();
         } else {
-
-            console.error("Failed to add player");
-
+            fetchLeaderboard();
         }
+    });
 
-    } catch (error) {
+    document.getElementById("add-player-btn")?.addEventListener("click", openPlayerModal);
+    document.getElementById("simulate-update-btn")?.addEventListener("click", simulateServerUpdate);
 
-        console.error("Error adding player:", error);
+    document.querySelector('.modal .close')?.addEventListener('click', closePlayerModal);
+    document.getElementById('player-modal')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('player-modal')) {
+            closePlayerModal();
+        }
+    });
 
-    }
+    document.getElementById("add-player-form")?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        addNewPlayer();
+    });
 
+    document.getElementById("search-player")?.addEventListener("input",(e)=>{
+        filterLeaderboard(e.target.value);
+    });
 }
 
-
 // =============================
-// PAGE-AWARE INITIALIZATION
+// INIT
 // =============================
-
-function initializePage() {
-    const currentPath = window.location.pathname;
-    const currentPage = currentPath.split('/').pop().replace('.html', '') || 'index';
-
-    // Initialize navigation on all pages
+document.addEventListener("DOMContentLoaded", () => {
     initNavigation();
+    setupEventListeners();
 
-    // Page-specific initialization
-    switch(currentPage) {
-        case 'index':
-            // Dashboard page
-            initEventListeners();
-            fetchLeaderboard();
-            fetchRecentActivity();
-            break;
-
-        case 'leaderboard':
-            // Leaderboard page
-            initLeaderboardPage();
-            break;
-
-        case 'network':
-            // Network page - handled by network.js
-            break;
-
-        case 'activity':
-            // Activity page
-            initActivityPage();
-            break;
-
-        case 'stats':
-            // Stats page - handled by stats.js
-            break;
-
-        case 'datastructures':
-            // Data structures page - handled by datastructures.js
-            break;
-
-        default:
-            // Default to dashboard functionality
-            initEventListeners();
-            fetchLeaderboard();
-            fetchRecentActivity();
-    }
-}
-
-// =============================
-// PAGE INITIALIZERS
-// =============================
-
-function initLeaderboardPage() {
-    // Initialize leaderboard-specific elements
-    fetchLeaderboard();
-
-    // Set up search functionality
-    const searchInput = document.getElementById('search-player');
-    if (searchInput) {
-        searchInput.addEventListener('input', function(e) {
-            filterLeaderboard(e.target.value);
-        });
-    }
-
-    // Set up refresh button
-    const refreshBtn = document.getElementById('refresh-btn');
-    if (refreshBtn) {
-        refreshBtn.addEventListener('click', () => {
-            fetchLeaderboard();
-        });
-    }
-
-    // Auto-refresh for leaderboard
-    updateInterval = setInterval(() => {
-        fetchLeaderboard();
-    }, 5000);
-}
-
-function initActivityPage() {
-    // Initialize activity-specific elements
-    fetchRecentActivity();
-
-    // Auto-refresh for activity
-    updateInterval = setInterval(() => {
-        fetchRecentActivity();
-    }, 5000);
-}
-
-// =============================
-// INITIALIZATION
-// =============================
-
-document.addEventListener('DOMContentLoaded', function() {
-    initializePage();
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
     if (updateInterval) {
         clearInterval(updateInterval);
+    }
+    if (dashboardInterval) {
+        clearInterval(dashboardInterval);
+    }
+    if (activityInterval) {
+        clearInterval(activityInterval);
+    }
+
+    if (isDashboardPage()) {
+        fetchDashboard();
+        dashboardInterval = setInterval(fetchDashboard, 10000);
+        activityInterval = setInterval(fetchRecentActivity, 5000);
+        console.log("Dashboard auto-refresh started (every 10 seconds)");
+    } else {
+        fetchLeaderboard();
+        fetchRecentActivity();
+        if (document.getElementById("leaderboard-body")) {
+            updateInterval = setInterval(() => {
+                fetchLeaderboard();
+            }, 12000);
+            console.log("Leaderboard auto-refresh started (every 12 seconds)");
+        }
     }
 });

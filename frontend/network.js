@@ -1,8 +1,8 @@
 // network.js - Player Network Visualization
 
 class NetworkGraph {
-    constructor(containerId) {
-        this.containerId = containerId;
+    constructor(svgId) {
+        this.svgId = svgId;
         this.svg = null;
         this.simulation = null;
         this.nodes = [];
@@ -10,17 +10,15 @@ class NetworkGraph {
         this.width = 800;
         this.height = 600;
         this.colorScale = d3.scaleOrdinal(d3.schemeCategory10);
-        this.sizeScale = d3.scaleLinear().range([5, 20]);
+        this.sizeScale = d3.scaleLinear().range([10, 30]);
         this.isInitialized = false;
+        this.tooltip = null;
     }
 
     init() {
         if (this.isInitialized) return;
 
-        this.svg = d3.select(`#${this.containerId}`)
-            .append('svg')
-            .attr('width', this.width)
-            .attr('height', this.height)
+        this.svg = d3.select(`#${this.svgId}`)
             .attr('viewBox', [0, 0, this.width, this.height]);
 
         // Add zoom behavior
@@ -50,30 +48,40 @@ class NetworkGraph {
             .attr('fill', '#00d4ff')
             .style('opacity', 0.6);
 
+        // Create tooltip
+        this.tooltip = d3.select('body').append('div')
+            .attr('class', 'network-tooltip')
+            .style('position', 'absolute')
+            .style('visibility', 'hidden')
+            .style('background', 'rgba(0, 0, 0, 0.8)')
+            .style('color', 'white')
+            .style('padding', '8px')
+            .style('border-radius', '4px')
+            .style('font-size', '12px')
+            .style('pointer-events', 'none')
+            .style('z-index', '1000');
+
         this.isInitialized = true;
     }
 
     async loadData() {
         try {
-            const response = await fetch('/matches');
+            const response = await fetch('http://localhost:8080/api/network');
             if (!response.ok) {
                 throw new Error('Failed to load network data');
             }
-            const links = await response.json();
+            const data = await response.json();
 
-            // Create nodes from unique players in links
-            const nodeMap = new Map();
-            links.forEach(link => {
-                if (!nodeMap.has(link.source)) {
-                    nodeMap.set(link.source, { id: link.source, name: link.source });
-                }
-                if (!nodeMap.has(link.target)) {
-                    nodeMap.set(link.target, { id: link.target, name: link.target });
-                }
-            });
+            // Limit to top 50 players by score
+            this.nodes = data.nodes
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 50);
 
-            this.nodes = Array.from(nodeMap.values());
-            this.links = links;
+            // Filter links to only include nodes that are in the top 50
+            const nodeIds = new Set(this.nodes.map(n => n.id));
+            this.links = data.links.filter(link =>
+                nodeIds.has(link.source) && nodeIds.has(link.target)
+            );
 
             // Update scales
             this.sizeScale.domain(d3.extent(this.nodes, d => d.score || 0));
@@ -90,13 +98,8 @@ class NetworkGraph {
 
         const group = this.svg.select('.network-group');
 
-        // Clear previous content
-        group.selectAll('*').remove();
-
-        if (this.nodes.length === 0) {
-            this.showNoData();
-            return;
-        }
+        // Update scales
+        this.sizeScale.domain(d3.extent(this.nodes, d => d.score || 0));
 
         // Create force simulation
         this.simulation = d3.forceSimulation(this.nodes)
@@ -106,58 +109,81 @@ class NetworkGraph {
             .force('collision', d3.forceCollide().radius(d => this.sizeScale(d.score || 0) + 5));
 
         // Create links
-        const link = group.append('g')
-            .attr('class', 'links')
-            .selectAll('line')
-            .data(this.links)
-            .enter().append('line')
-            .attr('stroke', '#00d4ff')
-            .attr('stroke-opacity', 0.6)
-            .attr('stroke-width', d => Math.sqrt(d.value || 1))
-            .attr('marker-end', 'url(#arrowhead)');
+        const link = group.selectAll('.link')
+            .data(this.links, d => `${d.source}-${d.target}`)
+            .join(
+                enter => enter.append('line')
+                    .attr('class', 'link')
+                    .attr('stroke', '#00d4ff')
+                    .attr('stroke-opacity', 0.6)
+                    .attr('stroke-width', d => Math.sqrt(d.value || 1))
+                    .attr('marker-end', 'url(#arrowhead)'),
+                update => update,
+                exit => exit.remove()
+            );
 
         // Create nodes
-        const node = group.append('g')
-            .attr('class', 'nodes')
-            .selectAll('circle')
-            .data(this.nodes)
-            .enter().append('circle')
-            .attr('r', d => this.sizeScale(d.score || 0))
-            .attr('fill', d => this.colorScale(d.rank || 0))
-            .attr('stroke', '#00d4ff')
-            .attr('stroke-width', 2)
-            .call(d3.drag()
-                .on('start', (event, d) => {
-                    if (!event.active) this.simulation.alphaTarget(0.3).restart();
-                    d.fx = d.x;
-                    d.fy = d.y;
-                })
-                .on('drag', (event, d) => {
-                    d.fx = event.x;
-                    d.fy = event.y;
-                })
-                .on('end', (event, d) => {
-                    if (!event.active) this.simulation.alphaTarget(0);
-                    d.fx = null;
-                    d.fy = null;
-                }));
+        const node = group.selectAll('.node')
+            .data(this.nodes, d => d.id)
+            .join(
+                enter => enter.append('circle')
+                    .attr('class', 'node')
+                    .attr('r', d => this.sizeScale(d.score || 0))
+                    .attr('fill', d => d.rank <= 5 ? '#ffd700' : '#00d4ff') // Gold for top 5
+                    .attr('stroke', '#00d4ff')
+                    .attr('stroke-width', 2)
+                    .call(d3.drag()
+                        .on('start', (event, d) => {
+                            if (!event.active) this.simulation.alphaTarget(0.3).restart();
+                            d.fx = d.x;
+                            d.fy = d.y;
+                        })
+                        .on('drag', (event, d) => {
+                            d.fx = event.x;
+                            d.fy = event.y;
+                        })
+                        .on('end', (event, d) => {
+                            if (!event.active) this.simulation.alphaTarget(0);
+                            d.fx = null;
+                            d.fy = null;
+                        })
+                    )
+                    .on('mouseover', (event, d) => {
+                        this.tooltip
+                            .style('visibility', 'visible')
+                            .html(`<strong>${d.name}</strong><br>Rank: ${d.rank}<br>Score: ${d.score}`);
+                    })
+                    .on('mousemove', (event) => {
+                        this.tooltip
+                            .style('top', (event.pageY - 10) + 'px')
+                            .style('left', (event.pageX + 10) + 'px');
+                    })
+                    .on('mouseout', () => {
+                        this.tooltip.style('visibility', 'hidden');
+                    }),
+                update => update
+                    .attr('r', d => this.sizeScale(d.score || 0))
+                    .attr('fill', d => d.rank <= 5 ? '#ffd700' : '#00d4ff'),
+                exit => exit.remove()
+            );
 
         // Add labels
-        const labels = group.append('g')
-            .attr('class', 'labels')
-            .selectAll('text')
-            .data(this.nodes)
-            .enter().append('text')
-            .text(d => d.name || d.id)
-            .attr('font-family', 'Rajdhani, sans-serif')
-            .attr('font-size', '12px')
-            .attr('fill', '#e2e8f0')
-            .attr('text-anchor', 'middle')
-            .attr('dy', d => this.sizeScale(d.score || 0) + 15);
-
-        // Add tooltips
-        node.append('title')
-            .text(d => `${d.name || d.id}\nRank: ${d.rank || 'N/A'}\nScore: ${d.score || 0}`);
+        const labels = group.selectAll('.label')
+            .data(this.nodes, d => d.id)
+            .join(
+                enter => enter.append('text')
+                    .attr('class', 'label')
+                    .text(d => d.name)
+                    .attr('font-family', 'Rajdhani, sans-serif')
+                    .attr('font-size', '12px')
+                    .attr('fill', '#e2e8f0')
+                    .attr('text-anchor', 'middle')
+                    .attr('dy', d => this.sizeScale(d.score || 0) + 15),
+                update => update
+                    .text(d => d.name)
+                    .attr('dy', d => this.sizeScale(d.score || 0) + 15),
+                exit => exit.remove()
+            );
 
         // Update positions on simulation tick
         this.simulation.on('tick', () => {
@@ -176,58 +202,12 @@ class NetworkGraph {
                 .attr('y', d => d.y);
         });
 
-        // Add controls
-        this.addControls();
-    }
-
-    addControls() {
-        const controls = d3.select(`#${this.containerId}`)
-            .append('div')
-            .attr('class', 'network-controls')
-            .style('position', 'absolute')
-            .style('top', '10px')
-            .style('right', '10px');
-
-        controls.append('button')
-            .attr('class', 'btn btn-secondary btn-small')
-            .text('🔄 Reset')
-            .on('click', () => {
-                this.simulation.alpha(1).restart();
-            });
-
-        controls.append('button')
-            .attr('class', 'btn btn-secondary btn-small')
-            .text('🎯 Center')
-            .on('click', () => {
-                this.svg.transition().duration(750).call(
-                    d3.zoom().transform,
-                    d3.zoomIdentity
-                );
-            });
-    }
-
-    showNoData() {
-        const group = this.svg.select('.network-group');
-
-        group.append('text')
-            .attr('x', this.width / 2)
-            .attr('y', this.height / 2 - 20)
-            .attr('text-anchor', 'middle')
-            .attr('fill', '#94a3b8')
-            .attr('font-size', '18px')
-            .text('No Network Data Available');
-
-        group.append('text')
-            .attr('x', this.width / 2)
-            .attr('y', this.height / 2 + 20)
-            .attr('text-anchor', 'middle')
-            .attr('fill', '#94a3b8')
-            .attr('font-size', '14px')
-            .text('Add players to see their connections');
+        // Hide placeholder
+        d3.select('.network-placeholder').style('display', 'none');
     }
 
     showError(message) {
-        const container = d3.select(`#${this.containerId}`);
+        const container = d3.select('#network-container');
         container.select('.network-placeholder').remove();
 
         container.append('div')
@@ -251,8 +231,8 @@ class NetworkGraph {
         if (this.simulation) {
             this.simulation.stop();
         }
-        if (this.svg) {
-            this.svg.remove();
+        if (this.tooltip) {
+            this.tooltip.remove();
         }
         this.isInitialized = false;
     }
@@ -262,14 +242,19 @@ class NetworkGraph {
 let networkGraph;
 
 document.addEventListener('DOMContentLoaded', function() {
-    networkGraph = new NetworkGraph('network-container');
+    networkGraph = new NetworkGraph('network-svg');
     networkGraph.init();
     networkGraph.loadData();
 
-    // Auto-refresh every 30 seconds
+    // Auto-refresh every 5 seconds
     setInterval(() => {
         networkGraph.loadData();
-    }, 30000);
+    }, 5000);
+
+    // Handle refresh button
+    d3.select('#refresh-network-btn').on('click', () => {
+        networkGraph.loadData();
+    });
 });
 
 // Cleanup on page unload
