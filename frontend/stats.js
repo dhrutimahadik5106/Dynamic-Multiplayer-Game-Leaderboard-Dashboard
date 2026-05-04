@@ -219,10 +219,12 @@ class StatsDashboard {
     updateCharts() {
         if (!this.data) return;
 
-        // Update Score Distribution
-        if (this.data.scoreDistribution) {
-            this.charts.scoreDistribution.data.labels = this.data.scoreDistribution.labels || [];
-            this.charts.scoreDistribution.data.datasets[0].data = this.data.scoreDistribution.data || [];
+        const topPlayers = Array.isArray(this.data.topPlayers) ? this.data.topPlayers : [];
+
+        // Update Top 10 Players chart
+        if (topPlayers.length) {
+            this.charts.scoreDistribution.data.labels = topPlayers.map(player => player.username || 'Player');
+            this.charts.scoreDistribution.data.datasets[0].data = topPlayers.map(player => player.score || 0);
             this.charts.scoreDistribution.update();
         }
 
@@ -252,13 +254,15 @@ class StatsDashboard {
 
         const stats = this.data.stats;
 
-        // Update stat values
         this.updateStatValue('total-players', stats.totalPlayers || 0);
-        this.updateStatValue('total-games', stats.totalGames || 0);
-        this.updateStatValue('avg-score', (stats.averageScore || 0).toFixed(1));
-        this.updateStatValue('active-sessions', stats.activeSessions || 0);
-        this.updateStatValue('peak-concurrent', stats.peakConcurrent || 0);
-        this.updateStatValue('uptime', `${stats.uptime || 0}%`);
+        this.updateStatValue('total-matches', stats.totalGames || 0);
+        this.updateStatValue('avg-session', `${Math.max(1, Math.round((stats.averageScore || 0) / 100))}m`);
+        this.updateStatValue('records-broken', this.data.recordsBroken || 0);
+
+        this.updateStatValue('db-players', `${this.data.dbPlayers || stats.totalPlayers || 0} rows`);
+        this.updateStatValue('db-matches', `${this.data.dbMatches || stats.totalGames || 0} rows`);
+        this.updateStatValue('db-activity', `${this.data.dbActivity || 0} entries`);
+        this.updateStatValue('db-size', `${(this.data.dbSize || 0).toFixed(2)} MB`);
     }
 
     updateStatValue(id, value) {
@@ -270,7 +274,9 @@ class StatsDashboard {
 
     showError(message) {
         // Show error in a chart container
-        const container = document.getElementById('score-distribution-chart').parentElement;
+        const chartCanvas = document.getElementById('score-distribution-chart');
+        if (!chartCanvas || !chartCanvas.parentElement) return;
+        const container = chartCanvas.parentElement;
         container.innerHTML = `
             <div class="chart-error">
                 <h4>⚠️ Error</h4>

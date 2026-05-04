@@ -1,22 +1,15 @@
-#include <string>
-#include <vector>
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
 
 using namespace std;
 
-/*-------------------------------------------------------
-   Activity Node (Doubly Linked List)
--------------------------------------------------------*/
-
 struct ActivityNode
 {
-    string message;
+    char message[200];
     ActivityNode* prev;
     ActivityNode* next;
 };
-
-/*-------------------------------------------------------
-   Activity List Class
--------------------------------------------------------*/
 
 class ActivityList
 {
@@ -25,54 +18,38 @@ private:
     ActivityNode* tail;
     int maxSize;
     int currentSize;
-    ActivityNode* createNode(string message);
-    void removeLast();
+    
 public:
     ActivityList();
-    void addActivity(string message);
-    vector<string> getActivities();
+    void addActivity(char* message);
+    void getActivities(char activities[][200], int* count);
     void clear();
 };
 
-
-/*-------------------------------------------------------
-   Constructor
--------------------------------------------------------*/
-
 ActivityList::ActivityList()
 {
-    head = nullptr;
-    tail = nullptr;
+    head = 0;
+    tail = 0;
     maxSize = 20;
     currentSize = 0;
 }
 
-
-/*-------------------------------------------------------
-   Create New Node
--------------------------------------------------------*/
-
-ActivityNode* ActivityList::createNode(string message)
+void ActivityList::addActivity(char* message)
 {
     ActivityNode* node = new ActivityNode;
-
-    node->message = message;
-    node->prev = nullptr;
-    node->next = nullptr;
-
-    return node;
-}
-
-
-/*-------------------------------------------------------
-   Add Activity (Insert at Front)
--------------------------------------------------------*/
-
-void ActivityList::addActivity(string message)
-{
-    ActivityNode* node = createNode(message);
-
-    if(head == nullptr)
+    
+    int i = 0;
+    while(message[i] != '\0' && i < 199)
+    {
+        node->message[i] = message[i];
+        i++;
+    }
+    node->message[i] = '\0';
+    
+    node->prev = 0;
+    node->next = 0;
+    
+    if(head == 0)
     {
         head = node;
         tail = node;
@@ -83,77 +60,61 @@ void ActivityList::addActivity(string message)
         head->prev = node;
         head = node;
     }
-
+    
     currentSize++;
-
-    /* Remove oldest activity if limit exceeded */
+    
     if(currentSize > maxSize)
     {
-        removeLast();
+        if(tail == 0)
+            return;
+        
+        ActivityNode* temp = tail;
+        tail = tail->prev;
+        
+        if(tail != 0)
+            tail->next = 0;
+        else
+            head = 0;
+        
+        delete temp;
+        currentSize--;
     }
 }
 
-
-/*-------------------------------------------------------
-   Remove Last Activity
--------------------------------------------------------*/
-
-void ActivityList::removeLast()
+void ActivityList::getActivities(char activities[][200], int* count)
 {
-    if(tail == nullptr)
-        return;
-
-    ActivityNode* temp = tail;
-
-    tail = tail->prev;
-
-    if(tail != nullptr)
-        tail->next = nullptr;
-    else
-        head = nullptr;
-
-    delete temp;
-
-    currentSize--;
-}
-
-
-/*-------------------------------------------------------
-   Get Activity Feed
--------------------------------------------------------*/
-
-vector<string> ActivityList::getActivities()
-{
-    vector<string> activities;
-
     ActivityNode* current = head;
-
-    while(current != nullptr)
+    int index = 0;
+    
+    while(current != 0)
     {
-        activities.push_back(current->message);
+        int i = 0;
+        while(current->message[i] != '\0' && i < 199)
+        {
+            activities[index][i] = current->message[i];
+            i++;
+        }
+        activities[index][i] = '\0';
+        
         current = current->next;
+        index++;
     }
-
-    return activities;
+    
+    *count = index;
 }
-
-
-/*-------------------------------------------------------
-   Clear Activity List
--------------------------------------------------------*/
 
 void ActivityList::clear()
 {
     ActivityNode* current = head;
-
-    while(current != nullptr)
+    
+    while(current != 0)
     {
         ActivityNode* temp = current;
         current = current->next;
         delete temp;
     }
-
-    head = nullptr;
-    tail = nullptr;
+    
+    head = 0;
+    tail = 0;
     currentSize = 0;
 }

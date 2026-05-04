@@ -22,8 +22,51 @@ let updateInterval;
 let dashboardInterval;
 let activityInterval;
 let previousPlayerPositions = new Map(); // Track previous positions for animation
+let useLocalMode = false;
 
 const API_BASE = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'http://localhost:8080';
+const LOCAL_STATE_KEY = 'leaderboard_local_state_v1';
+
+function readLocalState() {
+    const raw = localStorage.getItem(LOCAL_STATE_KEY);
+    if (raw) {
+        try {
+            return JSON.parse(raw);
+        } catch (e) {
+            console.warn('Local state parse failed, resetting.', e);
+        }
+    }
+
+    const seed = {
+        nextId: 1,
+        players: [],
+        activity: []
+    };
+    localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(seed));
+    return seed;
+}
+
+function writeLocalState(state) {
+    localStorage.setItem(LOCAL_STATE_KEY, JSON.stringify(state));
+}
+
+function toSortedPlayers(players) {
+    const copy = [...players];
+    copy.sort((a, b) => b.score - a.score);
+    return copy.map((p, i) => ({ ...p, rank: i + 1 }));
+}
+
+function localStatsFromPlayers(players) {
+    const totalPlayers = players.length;
+    const topScore = totalPlayers ? players[0].score : 0;
+    const avgScore = totalPlayers ? players.reduce((s, p) => s + p.score, 0) / totalPlayers : 0;
+    return {
+        totalPlayers,
+        topScore,
+        avgScore,
+        activeMatches: 25
+    };
+}
 
 function isDashboardPage() {
     return !!document.getElementById('top-players') && !!document.getElementById('activity-feed');
@@ -58,6 +101,15 @@ async function fetchLeaderboard() {
 
     } catch (error) {
         console.error("❌ Leaderboard fetch error:", error);
+        useLocalMode = true;
+
+        const local = readLocalState();
+        const sorted = toSortedPlayers(local.players);
+        leaderboardData = sorted;
+        updateLeaderboardDisplay(sorted);
+        updateQuickStats(sorted);
+        updateTopPlayers(sorted.slice(0, 5));
+
         const leaderboardCard = document.querySelector('.leaderboard-card');
         if (leaderboardCard) {
             leaderboardCard.classList.remove('updating');
@@ -84,6 +136,20 @@ async function fetchDashboardStats() {
         console.log('Stats refreshed', stats);
     } catch (error) {
         console.error('Stats fetch error:', error);
+        useLocalMode = true;
+        const local = readLocalState();
+        const sorted = toSortedPlayers(local.players);
+        const stats = localStatsFromPlayers(sorted);
+
+        const totalEl = document.getElementById('total-players');
+        const topEl = document.getElementById('top-score');
+        const avgEl = document.getElementById('avg-score');
+        const activeEl = document.getElementById('active-matches');
+
+        if (totalEl) totalEl.innerText = stats.totalPlayers;
+        if (topEl) topEl.innerText = stats.topScore;
+        if (avgEl) avgEl.innerText = Math.round(stats.avgScore);
+        if (activeEl) activeEl.innerText = stats.activeMatches;
     }
 }
 
@@ -95,6 +161,10 @@ async function fetchTopPlayers() {
         updateTopPlayers(Array.isArray(players) ? players : []);
     } catch (error) {
         console.error('Top players fetch error:', error);
+        useLocalMode = true;
+        const local = readLocalState();
+        const sorted = toSortedPlayers(local.players);
+        updateTopPlayers(sorted.slice(0, 5));
     }
 }
 
@@ -141,11 +211,15 @@ async function fetchRecentActivity() {
         const response = await fetch(`${API_BASE}/activity`);
         if (!response.ok) throw new Error(`Activity HTTP ${response.status}`);
         const data = await response.json();
-        updateActivityFeed(Array.isArray(data) ? data : []);
-        console.log("Activity feed updated", Array.isArray(data) ? data.length : 0, "items");
+        const events = Array.isArray(data) ? data : (Array.isArray(data.events) ? data.events.map(e => e.text) : []);
+        updateActivityFeed(events);
+        console.log("Activity feed updated", events.length, "items");
 
     } catch (error) {
         console.error("Activity fetch error:", error);
+        useLocalMode = true;
+        const local = readLocalState();
+        updateActivityFeed(local.activity.slice(0, 10));
     }
 }
 
@@ -454,7 +528,30 @@ async function addNewPlayer(){
         }
     } catch (error) {
         console.error("Add player error:", error);
-        alert("Failed to add player");
+        useLocalMode = true;
+
+        const local = readLocalState();
+        const newPlayer = {
+            id: local.nextId,
+            username,
+            score
+        };
+        local.nextId += 1;
+        local.players.push(newPlayer);
+        local.activity.unshift(`Player ${username} joined the game!`);
+        if (local.activity.length > 50) {
+            local.activity = local.activity.slice(0, 50);
+        }
+        writeLocalState(local);
+
+        closePlayerModal();
+        if (usernameInput) usernameInput.value = "";
+        if (scoreInput) scoreInput.value = "1000";
+
+        await fetchDashboard();
+        if (document.getElementById('leaderboard-body')) {
+            fetchLeaderboard();
+        }
     }
 }
 
@@ -476,7 +573,26 @@ async function simulateServerUpdate() {
         }
     } catch (error) {
         console.error('Simulate update error:', error);
-        alert('Failed to simulate update');
+        useLocalMode = true;
+        const local = readLocalState();
+
+        if (local.players.length) {
+            const idx = Math.floor(Math.random() * local.players.length);
+            const change = Math.floor(Math.random() * 101) - 50;
+            local.players[idx].score += change;
+            if (local.players[idx].score < 0) local.players[idx].score = 0;
+
+            local.activity.unshift(`Player ${local.players[idx].username} score updated!`);
+            if (local.activity.length > 50) {
+                local.activity = local.activity.slice(0, 50);
+            }
+            writeLocalState(local);
+        }
+
+        await fetchDashboard();
+        if (document.getElementById('leaderboard-body')) {
+            fetchLeaderboard();
+        }
     }
 }
 
@@ -498,6 +614,20 @@ async function updatePlayerScore(id,change){
         fetchLeaderboard();
     } catch (error) {
         console.error("Score update error:", error);
+        useLocalMode = true;
+        const local = readLocalState();
+        const player = local.players.find(p => p.id === id);
+        if (player) {
+            player.score += change;
+            if (player.score < 0) player.score = 0;
+            local.activity.unshift(`Player ${player.username} score updated!`);
+            if (local.activity.length > 50) {
+                local.activity = local.activity.slice(0, 50);
+            }
+            writeLocalState(local);
+            fetchLeaderboard();
+            fetchDashboard();
+        }
     }
 }
 
@@ -532,6 +662,11 @@ function setupEventListeners(){
     });
 
     document.getElementById("add-player-form")?.addEventListener("submit", (e) => {
+        e.preventDefault();
+        addNewPlayer();
+    });
+
+    document.getElementById("modal-add-player-btn")?.addEventListener("click", (e) => {
         e.preventDefault();
         addNewPlayer();
     });

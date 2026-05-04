@@ -1,31 +1,71 @@
-#ifndef EVENT_QUEUE_H
-#define EVENT_QUEUE_H
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
 
-#include <queue>
-#include <string>
+using namespace std;
 
-struct Event {
-    std::string message;
+struct Event
+{
+    char message[200];
 };
 
-class EventQueue {
+struct QueueNode
+{
+    Event event;
+    QueueNode* next;
+};
+
+class EventQueue
+{
 private:
-    std::queue<Event> q;
-
+    QueueNode* front;
+    QueueNode* rear;
+    
 public:
-    void push(Event e) {
-        q.push(e);
-    }
-
-    Event pop() {
-        Event e = q.front();
-        q.pop();
-        return e;
-    }
-
-    bool empty() {
-        return q.empty();
-    }
+    EventQueue();
+    void push(Event e);
+    Event pop();
+    int isEmpty();
 };
 
-#endif
+EventQueue::EventQueue()
+{
+    front = 0;
+    rear = 0;
+}
+
+void EventQueue::push(Event e)
+{
+    QueueNode* node = new QueueNode;
+    node->event = e;
+    node->next = 0;
+    
+    if(rear == 0)
+    {
+        front = node;
+        rear = node;
+    }
+    else
+    {
+        rear->next = node;
+        rear = node;
+    }
+}
+
+Event EventQueue::pop()
+{
+    QueueNode* temp = front;
+    Event e = front->event;
+    front = front->next;
+    
+    if(front == 0)
+        rear = 0;
+    
+    delete temp;
+    return e;
+}
+
+int EventQueue::isEmpty()
+{
+    return front == 0;
+}
