@@ -7,6 +7,85 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600&family=Rajdhani:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .live-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            color: #34d399;
+            font-weight: 700;
+            text-shadow: 0 0 10px rgba(52, 211, 153, 0.25);
+        }
+        .live-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #34d399;
+            box-shadow: 0 0 12px rgba(52, 211, 153, 0.8);
+            animation: pulseLive 1.6s infinite ease-in-out;
+        }
+        @keyframes pulseLive {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.4); opacity: 0.65; }
+        }
+        .top-players-list {
+            display: grid;
+            gap: 12px;
+            margin-top: 10px;
+            max-height: 560px;
+            overflow: hidden;
+        }
+        .player-entry {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 16px 18px;
+            border: 1px solid rgba(56, 189, 248, 0.18);
+            border-radius: 16px;
+            background: rgba(15, 23, 42, 0.85);
+            transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+            box-shadow: inset 0 0 12px rgba(56, 189, 248, 0.05);
+        }
+        .player-entry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 18px rgba(56, 189, 248, 0.22);
+        }
+        .player-rank {
+            min-width: 70px;
+            color: #00d4ff;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            font-size: 0.98rem;
+        }
+        .player-name {
+            flex: 1;
+            color: #e2e8f0;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .player-score {
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 700;
+            color: #cbd5e1;
+            min-width: 100px;
+            text-align: right;
+        }
+        .player-trend {
+            margin-left: 10px;
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+        .trend-up { color: #22c55e; }
+        .trend-down { color: #f97316; }
+        .chart-card { min-height: 420px; }
+        .chart-container { height: 360px; }
+        @media (max-width: 1080px) {
+            .chart-card { min-height: 380px; }
+            .chart-container { height: 320px; }
+        }
+    </style>
 </head>
 <body>
     <div class="dashboard-container">
@@ -26,7 +105,7 @@
         <div class="main-content">
             <header class="page-header">
                 <h1>Game Statistics</h1>
-                <p>Comprehensive analytics and database insights</p>
+                <p>Real-time gaming dashboard driven entirely by frontend simulation.</p>
             </header>
 
             <!-- STATS OVERVIEW -->
@@ -66,17 +145,16 @@
 
             <!-- CHARTS GRID -->
             <div class="charts-grid">
-                <!-- Top 10 Players Chart -->
                 <div class="card chart-card">
                     <div class="card-header">
                         <h3>🏆 Top 10 Players</h3>
+                        <div class="live-indicator">
+                            <span class="live-dot"></span> LIVE
+                        </div>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="score-distribution-chart"></canvas>
-                    </div>
+                    <div class="top-players-list" id="top-players-list"></div>
                 </div>
 
-                <!-- Score Distribution -->
                 <div class="card chart-card">
                     <div class="card-header">
                         <h3>📊 Rank Distribution</h3>
@@ -86,7 +164,6 @@
                     </div>
                 </div>
 
-                <!-- Player Growth -->
                 <div class="card chart-card">
                     <div class="card-header">
                         <h3>📈 Performance Trends</h3>
@@ -96,38 +173,12 @@
                     </div>
                 </div>
 
-                <!-- Activity Timeline -->
                 <div class="card chart-card">
                     <div class="card-header">
                         <h3>🕐 Activity Timeline</h3>
                     </div>
                     <div class="chart-container">
                         <canvas id="activity-timeline-chart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- DATABASE STATS -->
-            <div class="card db-stats-card">
-                <div class="card-header">
-                    <h3>💾 Database Statistics</h3>
-                </div>
-                <div class="db-stats-grid">
-                    <div class="db-stat">
-                        <span class="db-label">Players Table:</span>
-                        <span class="db-value" id="db-players">0 rows</span>
-                    </div>
-                    <div class="db-stat">
-                        <span class="db-label">Matches Table:</span>
-                        <span class="db-value" id="db-matches">0 rows</span>
-                    </div>
-                    <div class="db-stat">
-                        <span class="db-label">Activity Log:</span>
-                        <span class="db-value" id="db-activity">0 entries</span>
-                    </div>
-                    <div class="db-stat">
-                        <span class="db-label">Database Size:</span>
-                        <span class="db-value" id="db-size">0 MB</span>
                     </div>
                 </div>
             </div>

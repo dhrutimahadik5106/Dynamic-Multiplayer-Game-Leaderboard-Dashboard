@@ -4,8 +4,18 @@
 #include "player.h"
 #include "json.hpp"
 #include <algorithm>
+#include <ctime>
+#include <random>
+#include <mutex>
 
 using json = nlohmann::json;
+
+// Thread-safe random number generation
+extern std::random_device rd;
+extern std::mt19937 gen;
+extern std::mutex randMutex;
+
+extern int getRandomInt(int min, int max);
 
 // Declarations
 
@@ -76,10 +86,16 @@ private:
     int recordsBroken;
     int previousTopScore;
     int activityEventsSinceLastStats;
+    int joinEventsSinceLastStats;
+    int matchEventsSinceLastStats;
+    int scoreUpdateEventsSinceLastStats;
     vector<double> avgScoreHistory;
     vector<int> topScoreHistory;
     vector<int> totalPlayersHistory;
     vector<int> activityCountHistory;
+    vector<int> joinHistory;
+    vector<int> matchHistory;
+    vector<int> scoreUpdateHistory;
     vector<string> timeLabels;
 public:
     Leaderboard();
@@ -94,7 +110,6 @@ public:
     int topScore();
     double avgScore();
     void simulateRandomUpdate();
-    nlohmann::json getDataStructureStats();
     nlohmann::json getNetworkData();
     nlohmann::json getStatsData();
 };
@@ -534,6 +549,21 @@ Leaderboard::Leaderboard()
     recordsBroken = 0;
     previousTopScore = 0;
     activityEventsSinceLastStats = 0;
+    joinEventsSinceLastStats = 0;
+    matchEventsSinceLastStats = 0;
+    scoreUpdateEventsSinceLastStats = 0;
+
+    // Initialize history with some data
+    for(int i = 0; i < 10; i++) {
+        avgScoreHistory.push_back(0);
+        topScoreHistory.push_back(0);
+        totalPlayersHistory.push_back(0);
+        activityCountHistory.push_back(0);
+        joinHistory.push_back(0);
+        matchHistory.push_back(0);
+        scoreUpdateHistory.push_back(0);
+        timeLabels.push_back("T-" + to_string(10-i));
+    }
 
     vector<string> names = {
         "Shadow","Nova","Dragon","Phantom","Cyber","Dark","Ice","Storm","Blaze","Night",
@@ -554,13 +584,19 @@ Leaderboard::Leaderboard()
 
     for(int i = 0; i < 1000; i++)
     {
-        string name = names[rand() % names.size()] + to_string(rand() % 100);
-        int score = rand() % 2000;
+        string name = names[getRandomInt(0, names.size() - 1)] + to_string(getRandomInt(0, 99));
+        int score = getRandomInt(0, 1999);
 
         addPlayer(name, score, false);
     }
 
     previousTopScore = topScore();
+
+    // Update initial history
+    avgScoreHistory.back() = avgScore();
+    topScoreHistory.back() = topScore();
+    totalPlayersHistory.back() = totalPlayers();
+    activityCountHistory.back() = 0;
 }
 
 void Leaderboard::rebuildStructures()
@@ -599,6 +635,7 @@ Player Leaderboard::addPlayer(string username,int score, bool trackRecord)
     if (activityLog.size() > 250)
         activityLog.resize(250);
     activityEventsSinceLastStats++;
+    joinEventsSinceLastStats++;
 
     // Add to AVL Tree
     avlTree.insert(p);
@@ -684,6 +721,7 @@ void Leaderboard::updateScore(int id,int change)
     if (activityLog.size() > 250)
         activityLog.resize(250);
     activityEventsSinceLastStats++;
+    scoreUpdateEventsSinceLastStats++;
 
     int currentTop = topScore();
     if (currentTop > previousTopScore) {
@@ -784,17 +822,17 @@ void Leaderboard::simulateRandomUpdate()
     if(players.empty())
         return;
 
-    int changes = 4 + rand() % 3; // 4-6 players updated each cycle
+    int changes = 4 + getRandomInt(0, 2); // 4-6 players updated each cycle
     vector<int> updatedIds;
 
     for (int i = 0; i < changes; ++i)
     {
-        int index = rand() % players.size();
+        int index = getRandomInt(0, players.size() - 1);
         int change = 0;
-        if (rand() % 2 == 0)
-            change = 5 + rand() % 56;   // gain +5 to +60
+        if (getRandomInt(0, 1) == 0)
+            change = 5 + getRandomInt(0, 55);   // gain +5 to +60
         else
-            change = -(5 + rand() % 36); // loss -5 to -40
+            change = -(5 + getRandomInt(0, 35)); // loss -5 to -40
 
         players[index].score += change;
         if (players[index].score < 0)
@@ -818,28 +856,47 @@ void Leaderboard::simulateRandomUpdate()
 
     rebuildStructures();
 
+    totalMatches += 1;
+    matchEventsSinceLastStats += 1;
+
     int currentTop = topScore();
     if (currentTop > previousTopScore) {
         recordsBroken++;
         previousTopScore = currentTop;
     }
-}
 
-// ==========================
-// DATA STRUCTURE STATS
-// ==========================
+    // Update history
+    avgScoreHistory.push_back(avgScore());
+    topScoreHistory.push_back(topScore());
+    totalPlayersHistory.push_back(totalPlayers());
+    activityCountHistory.push_back(activityEventsSinceLastStats);
+    joinHistory.push_back(joinEventsSinceLastStats);
+    matchHistory.push_back(matchEventsSinceLastStats);
+    scoreUpdateHistory.push_back(scoreUpdateEventsSinceLastStats);
 
-json Leaderboard::getDataStructureStats()
-{
-    json stats = {
-        {"totalPlayers", (int)players.size()},
-        {"avlTreeHeight", avlTree.getHeight()},
-        {"maxHeapSize", maxHeap.size()},
-        {"hashTableSize", (int)playerIndex.size()},
-        {"activityLogSize", (int)activityLog.size()}
-    };
+    // Generate time label
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+    char buffer[20];
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", ltm);
+    timeLabels.push_back(string(buffer));
 
-    return stats;
+    // Keep only last 20
+    if (avgScoreHistory.size() > 20) {
+        avgScoreHistory.erase(avgScoreHistory.begin());
+        topScoreHistory.erase(topScoreHistory.begin());
+        totalPlayersHistory.erase(totalPlayersHistory.begin());
+        activityCountHistory.erase(activityCountHistory.begin());
+        joinHistory.erase(joinHistory.begin());
+        matchHistory.erase(matchHistory.begin());
+        scoreUpdateHistory.erase(scoreUpdateHistory.begin());
+        timeLabels.erase(timeLabels.begin());
+    }
+
+    activityEventsSinceLastStats = 0;
+    joinEventsSinceLastStats = 0;
+    matchEventsSinceLastStats = 0;
+    scoreUpdateEventsSinceLastStats = 0;
 }
 
 // ==========================
@@ -869,7 +926,7 @@ json Leaderboard::getNetworkData()
     json links = json::array();
     for (size_t i = 0; i < topPlayers.size(); ++i) {
         for (size_t j = i + 1; j < topPlayers.size() && j < i + 3; ++j) {  // connect to next 2
-            int value = rand() % 10 + 1;  // random value 1-10
+            int value = getRandomInt(1, 10);  // random value 1-10
             links.push_back({
                 {"source", topPlayers[i].id},
                 {"target", topPlayers[j].id},
@@ -892,58 +949,120 @@ json Leaderboard::getStatsData()
 
     // Basic stats
     result["totalPlayers"] = totalPlayers();
-    result["totalMatches"] = totalMatches;
-    result["avgSession"] = max(3.0, min(25.0, avgScore() / 10.0 + 4.0));
+    result["totalMatches"] = max(0, totalMatches);
+    result["avgSessionTime"] = max(3.0, min(25.0, avgScore() / 10.0 + 4.0));
     result["recordsBroken"] = recordsBroken;
 
-    // Top 10 players
+    // Top players
     json topPlayersJson = json::array();
     auto topPlayers = getTopPlayers(10);
-    for (auto &p : topPlayers) {
-        topPlayersJson.push_back({
-            {"id", p.id},
-            {"username", p.username},
-            {"score", p.score}
-        });
+    if (topPlayers.empty()) {
+        vector<string> placeholderNames = {
+            "ShadowFox", "NovaRift", "PixelFury", "BladeDrift", "CyberPulse",
+            "VortexAce", "EchoStrike", "NeonViper", "QuantumJet", "TitanFlux"
+        };
+        for (int i = 0; i < 10; ++i) {
+            topPlayersJson.push_back({
+                {"username", placeholderNames[i]},
+                {"score", 880 + i * 14}
+            });
+        }
+    } else {
+        for (auto &p : topPlayers) {
+            topPlayersJson.push_back({
+                {"username", p.username},
+                {"score", p.score}
+            });
+        }
+        while (topPlayersJson.size() < 10) {
+            topPlayersJson.push_back({
+                {"username", string("Player_") + to_string((int)topPlayersJson.size() + 1)},
+                {"score", 800}
+            });
+        }
     }
     result["topPlayers"] = topPlayersJson;
 
-    // Current values for trends
-    result["avgScore"] = avgScore();
-    result["topScore"] = topScore();
-
-    // Rank distribution segments
+    // Rank distribution
     auto allPlayers = getLeaderboard();
-    if (!allPlayers.empty()) {
-        int n = allPlayers.size();
-        int top10Count = max(1, (int)ceil(n * 0.1));
-        int top25Count = max(1, (int)ceil(n * 0.25));
-        int top50Count = max(1, (int)ceil(n * 0.5));
-        int bottom50Count = max(0, n - top50Count);
+    int n = allPlayers.size();
+    int top10Count = n > 0 ? max(1, (int)ceil(n * 0.1)) : 0;
+    int top25Count = n > 0 ? max(1, (int)ceil(n * 0.25)) : 0;
+    int top50Count = n > 0 ? max(1, (int)ceil(n * 0.5)) : 0;
+    int bottom50Count = n > 0 ? max(0, n - top50Count) : 0;
 
-        result["distribution"] = {
-            {"top10", top10Count},
-            {"top25", top25Count - top10Count},
-            {"top50", top50Count - top25Count},
-            {"bottom50", bottom50Count}
-        };
-    } else {
-        result["distribution"] = {
-            {"top10", 0},
-            {"top25", 0},
-            {"top50", 0},
-            {"bottom50", 0}
-        };
-    }
+    result["rankDistribution"] = {
+        {"top10", top10Count},
+        {"top25", max(0, top25Count - top10Count)},
+        {"top50", max(0, top50Count - top25Count)},
+        {"bottom50", bottom50Count}
+    };
 
-    // Current raw activity count
-    result["timeline"] = getActivity().size();
-    result["dbPlayers"] = totalPlayers();
-    result["dbMatches"] = totalMatches;
-    result["dbActivity"] = getActivity().size();
-    result["dbSize"] = max(5.0, (double)players.size() * 0.01 + 2.0);
+    // Trends and time labels
+    vector<double> avg = avgScoreHistory;
+    vector<double> top(topScoreHistory.begin(), topScoreHistory.end());
+    vector<double> active(totalPlayersHistory.begin(), totalPlayersHistory.end());
+    vector<string> labels = timeLabels;
+    vector<int> activity = activityCountHistory;
 
-    activityEventsSinceLastStats = 0;
+    int desiredPoints = 10;
+    int currentSize = (int)max({avg.size(), top.size(), active.size(), labels.size(), activity.size(), (size_t)desiredPoints});
+
+    auto padDouble = [&](vector<double> &values, double fallback) {
+        if (values.empty()) {
+            values.assign(currentSize, fallback);
+        }
+        while ((int)values.size() < currentSize) {
+            values.push_back(values.back());
+        }
+        if ((int)values.size() > currentSize) {
+            values.erase(values.begin(), values.end() - currentSize);
+        }
+    };
+
+    auto padString = [&](vector<string> &values) {
+        if (values.empty()) {
+            values.resize(currentSize);
+        }
+        while ((int)values.size() < currentSize) {
+            values.insert(values.begin(), string("T-") + to_string(currentSize - values.size()));
+        }
+        if ((int)values.size() > currentSize) {
+            values.erase(values.begin(), values.end() - currentSize);
+        }
+        for (int i = 0; i < (int)values.size(); ++i) {
+            if (values[i].empty()) {
+                values[i] = string("T-") + to_string((int)values.size() - i);
+            }
+        }
+    };
+
+    auto padInt = [&](vector<int> &values, int fallback) {
+        if (values.empty()) {
+            values.assign(currentSize, fallback);
+        }
+        while ((int)values.size() < currentSize) {
+            values.push_back(values.back());
+        }
+        if ((int)values.size() > currentSize) {
+            values.erase(values.begin(), values.end() - currentSize);
+        }
+    };
+
+    padDouble(avg, avgScore());
+    padDouble(top, topScore());
+    padDouble(active, totalPlayers());
+    padString(labels);
+    padInt(activity, joinHistory.empty() ? 0 : activityCountHistory.back());
+
+    result["trends"] = {
+        {"avgScore", avg},
+        {"topScore", top},
+        {"activePlayers", active}
+    };
+
+    result["activityTimeline"] = activity;
+    result["timeLabels"] = labels;
 
     return result;
 }

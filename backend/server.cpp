@@ -5,6 +5,7 @@
 #include <mutex>
 #include <chrono>
 #include <ctime>
+#include <random>
 
 #include "httplib.h"
 #include "json.hpp"
@@ -14,6 +15,17 @@
 #include <unordered_map>
 #include <functional>
 #include "player.h"
+
+// Thread-safe random number generation
+std::random_device rd;
+std::mt19937 gen(rd());
+std::mutex randMutex;
+
+int getRandomInt(int min, int max) {
+    std::lock_guard<std::mutex> lock(randMutex);
+    std::uniform_int_distribution<> dist(min, max);
+    return dist(gen);
+}
 
 // Declarations
 
@@ -92,7 +104,6 @@ public:
     int topScore();
     double avgScore();
     void simulateRandomUpdate();
-    nlohmann::json getDataStructureStats();
     nlohmann::json getNetworkData();
     nlohmann::json getStatsData();
 };
@@ -173,9 +184,9 @@ string generateRandomUsername()
         "Knight","Star","Wing","Claw","Viper","Frost","Fire","Dragon","Ninja","Shadow"
     };
 
-    string name = baseNames[rand() % baseNames.size()];
-    string suffix = suffixes[rand() % suffixes.size()];
-    int number = rand() % 90 + 10;
+    string name = baseNames[getRandomInt(0, baseNames.size() - 1)];
+    string suffix = suffixes[getRandomInt(0, suffixes.size() - 1)];
+    int number = getRandomInt(10, 99);
 
     return name + suffix + to_string(number);
 }
@@ -183,8 +194,6 @@ string generateRandomUsername()
 
 int main()
 {
-    srand(time(0));
-
     cout << "Server starting...\n";
 
     httplib::Server server;
@@ -199,18 +208,22 @@ int main()
     thread liveUpdateThread([](){
         while(true)
         {
-            this_thread::sleep_for(chrono::seconds(10));
+            try {
+                this_thread::sleep_for(chrono::seconds(10));
 
-            lock_guard<mutex> lock(dataMutex);
+                lock_guard<mutex> lock(dataMutex);
 
-            int joins = 3 + rand() % 2; // 3-4 new players
-            for (int i = 0; i < joins; ++i) {
-                string username = generateRandomUsername();
-                int score = 100 + rand() % 2101; // 100-2200
-                leaderboard.addPlayer(username, score);
+                int joins = 3 + getRandomInt(0, 1); // 3-4 new players
+                for (int i = 0; i < joins; ++i) {
+                    string username = generateRandomUsername();
+                    int score = 100 + getRandomInt(0, 2100); // 100-2200
+                    leaderboard.addPlayer(username, score);
+                }
+
+                leaderboard.simulateRandomUpdate();
+            } catch (const exception& e) {
+                cout << "Error in live update thread: " << e.what() << endl;
             }
-
-            leaderboard.simulateRandomUpdate();
         }
     });
     liveUpdateThread.detach();
@@ -220,53 +233,75 @@ int main()
     server.Get("/leaderboard", [](const httplib::Request&, httplib::Response &res)
     {
         res.set_header("Access-Control-Allow-Origin", "*");
-        lock_guard<mutex> lock(dataMutex);
-        res.set_content(playersToJson(leaderboard.getLeaderboard()).dump(), "application/json");
+        try {
+            lock_guard<mutex> lock(dataMutex);
+            res.set_content(playersToJson(leaderboard.getLeaderboard()).dump(), "application/json");
+        } catch (const exception& e) {
+            res.status = 500;
+            res.set_content("Internal Server Error: " + string(e.what()), "text/plain");
+        }
     });
 
     server.Get("/topPlayers", [](const httplib::Request&, httplib::Response &res)
     {
         res.set_header("Access-Control-Allow-Origin", "*");
-        lock_guard<mutex> lock(dataMutex);
-        res.set_content(playersToJson(leaderboard.getTopPlayers(5)).dump(), "application/json");
+        try {
+            lock_guard<mutex> lock(dataMutex);
+            res.set_content(playersToJson(leaderboard.getTopPlayers(5)).dump(), "application/json");
+        } catch (const exception& e) {
+            res.status = 500;
+            res.set_content("Internal Server Error: " + string(e.what()), "text/plain");
+        }
     });
 
     server.Get("/activity", [](const httplib::Request&, httplib::Response &res)
     {
         res.set_header("Access-Control-Allow-Origin", "*");
-        lock_guard<mutex> lock(dataMutex);
-        res.set_content(activityToJson(leaderboard.getActivity()).dump(), "application/json");
+        try {
+            lock_guard<mutex> lock(dataMutex);
+            res.set_content(activityToJson(leaderboard.getActivity()).dump(), "application/json");
+        } catch (const exception& e) {
+            res.status = 500;
+            res.set_content("Internal Server Error: " + string(e.what()), "text/plain");
+        }
     });
 
     server.Get("/stats", [](const httplib::Request&, httplib::Response &res)
     {
         res.set_header("Access-Control-Allow-Origin", "*");
-        lock_guard<mutex> lock(dataMutex);
-
-        auto players = leaderboard.getLeaderboard();
-
-        json stats = {
-            {"totalPlayers", (int)players.size()},
-            {"topScore", players.empty() ? 0 : players[0].score},
-            {"avgScore", leaderboard.avgScore()},
-            {"activeMatches", rand() % 81 + 20}
-        };
-
-        res.set_content(stats.dump(), "application/json");
+        try {
+            lock_guard<mutex> lock(dataMutex);
+            auto data = leaderboard.getStatsData();
+            std::cout << data.dump(2) << std::endl;
+            res.set_content(data.dump(), "application/json");
+        } catch (const exception& e) {
+            res.status = 500;
+            res.set_content("Internal Server Error: " + string(e.what()), "text/plain");
+        }
     });
 
     server.Get("/api/stats", [](const httplib::Request&, httplib::Response &res)
     {
         res.set_header("Access-Control-Allow-Origin", "*");
-        lock_guard<mutex> lock(dataMutex);
-        res.set_content(leaderboard.getStatsData().dump(), "application/json");
+        try {
+            lock_guard<mutex> lock(dataMutex);
+            res.set_content(leaderboard.getStatsData().dump(), "application/json");
+        } catch (const exception& e) {
+            res.status = 500;
+            res.set_content("Internal Server Error: " + string(e.what()), "text/plain");
+        }
     });
 
     server.Get("/statsData", [](const httplib::Request&, httplib::Response &res)
     {
         res.set_header("Access-Control-Allow-Origin", "*");
-        lock_guard<mutex> lock(dataMutex);
-        res.set_content(leaderboard.getStatsData().dump(), "application/json");
+        try {
+            lock_guard<mutex> lock(dataMutex);
+            res.set_content(leaderboard.getStatsData().dump(), "application/json");
+        } catch (const exception& e) {
+            res.status = 500;
+            res.set_content("Internal Server Error: " + string(e.what()), "text/plain");
+        }
     });
 
     server.Get("/api/network", [](const httplib::Request&, httplib::Response &res)

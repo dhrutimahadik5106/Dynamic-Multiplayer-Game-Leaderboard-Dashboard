@@ -22,11 +22,17 @@ let updateInterval;
 let dashboardInterval;
 let activityInterval;
 let previousPlayerPositions = new Map(); // Track previous positions for animation
+let activityFeedEvents = [];
+let activityFilter = 'all';
 
 const API_BASE = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : 'http://localhost:8080';
 
 function isDashboardPage() {
     return !!document.getElementById('top-players') && !!document.getElementById('activity-feed');
+}
+
+function isStatsPage() {
+    return window.location.pathname.split('/').pop().replace('.html', '') === 'stats';
 }
 
 async function fetchLeaderboard() {
@@ -44,7 +50,13 @@ async function fetchLeaderboard() {
 
         leaderboardData = data;
 
-        updateLeaderboardDisplay(leaderboardData);
+        const searchInput = document.getElementById("search-player");
+        if (searchInput && searchInput.value.trim()) {
+            filterLeaderboard(searchInput.value.trim());
+        } else {
+            updateLeaderboardDisplay(leaderboardData);
+        }
+
         updateQuickStats(leaderboardData);
         updateTopPlayers(leaderboardData.slice(0, 5));
 
@@ -101,7 +113,7 @@ async function fetchTopPlayers() {
 async function fetchDashboard() {
     await Promise.all([
         fetchDashboardStats(),
-        fetchTopPlayers(),
+        fetchLeaderboard(),
         fetchRecentActivity()
     ]);
 }
@@ -141,12 +153,105 @@ async function fetchRecentActivity() {
         const response = await fetch(`${API_BASE}/activity`);
         if (!response.ok) throw new Error(`Activity HTTP ${response.status}`);
         const data = await response.json();
-        updateActivityFeed(Array.isArray(data) ? data : []);
-        console.log("Activity feed updated", Array.isArray(data) ? data.length : 0, "items");
 
+        const normalized = Array.isArray(data) ? data : (data.events || []);
+        activityFeedEvents = normalizeActivityEntries(normalized);
+        updateActivityFeed(activityFeedEvents);
+
+        console.log("Activity feed updated", activityFeedEvents.length, "events");
     } catch (error) {
         console.error("Activity fetch error:", error);
     }
+}
+
+function normalizeActivityEntries(entries) {
+    if (!Array.isArray(entries)) return [];
+    return entries.map(item => {
+        if (typeof item === 'string') {
+            return {
+                type: classifyActivityType(item),
+                text: item
+            };
+        }
+
+        const text = item?.text || item?.message || '';
+        const type = item?.type || classifyActivityType(text);
+        return {
+            type,
+            text
+        };
+    });
+}
+
+function classifyActivityType(text) {
+    const lower = String(text).toLowerCase();
+    if (/joined|welcome/.test(lower)) return 'player';
+    if (/defeated|won|match|battle|completed|crushed|beat|dominated|outplayed|ranked/.test(lower)) return 'match';
+    if (/gained|lost|score changed|score unchanged|score updated|\+\d+|\-\d+|points/.test(lower)) return 'score';
+    return 'score';
+}
+
+function filterActivityEntries(entries, filterType) {
+    if (filterType === 'all') return entries;
+    return entries.filter(item => item.type === filterType);
+}
+
+function updateActivityStats(entries) {
+    const totalEl = document.getElementById('events-today');
+    const scoreEl = document.getElementById('score-changes');
+    const playerEl = document.getElementById('new-players');
+    const matchEl = document.getElementById('matches-played');
+
+    const total = entries.length;
+    const score = entries.filter(item => item.type === 'score').length;
+    const players = entries.filter(item => item.type === 'player').length;
+    const matches = entries.filter(item => item.type === 'match').length;
+
+    if (totalEl) totalEl.innerText = total;
+    if (scoreEl) scoreEl.innerText = score;
+    if (playerEl) playerEl.innerText = players;
+    if (matchEl) matchEl.innerText = matches;
+}
+
+function updateActivityFeed(data) {
+    const feed = document.getElementById("activity-feed");
+    if (!feed) return;
+
+    const filtered = filterActivityEntries(data, activityFilter);
+    renderActivityFeed(filtered);
+    updateActivityStats(data);
+}
+
+function renderActivityFeed(items) {
+    const feed = document.getElementById("activity-feed");
+    if (!feed) return;
+
+    feed.innerHTML = "";
+
+    if (!items || !items.length) {
+        feed.innerHTML = '<div class="activity-item">No recent activity yet</div>';
+        return;
+    }
+
+    items.slice(0, 20).forEach(item => {
+        const div = document.createElement("div");
+        div.className = "activity-item";
+        div.textContent = item.text;
+
+        if (item.type === 'score') {
+            if (/gained|\+\d+/.test(item.text)) {
+                div.classList.add('activity-gain');
+            } else if (/lost|\-\d+/.test(item.text)) {
+                div.classList.add('activity-loss');
+            }
+        } else if (item.type === 'player') {
+            div.classList.add('activity-player');
+        } else if (item.type === 'match') {
+            div.classList.add('activity-match');
+        }
+
+        feed.appendChild(div);
+    });
 }
 
 // =============================
@@ -197,11 +302,12 @@ function updateLeaderboardDisplay(players) {
         } else {
             // Update existing row content
             const oldScore = parseInt(row.querySelector('.score-cell').textContent.replace(/[^\d-]/g, ''));
-            updateRowContent(row, player, newIndex + 1);
+            const scoreDelta = !isNaN(oldScore) ? player.score - oldScore : null;
+            updateRowContent(row, player, newIndex + 1, scoreDelta);
 
             // Track score change for highlighting
-            if (!isNaN(oldScore) && oldScore !== player.score) {
-                scoreChanges.set(playerId, player.score - oldScore);
+            if (scoreDelta !== null && scoreDelta !== 0) {
+                scoreChanges.set(playerId, scoreDelta);
             }
         }
 
@@ -211,12 +317,17 @@ function updateLeaderboardDisplay(players) {
 
         // Calculate and apply movement animation
         if (oldDomIndex !== undefined && oldDomIndex !== newIndex) {
+            if (newIndex < oldDomIndex) {
+                row.classList.add('moving-up');
+            } else {
+                row.classList.add('moving-down');
+            }
+            setTimeout(() => row.classList.remove('moving-up', 'moving-down'), 800);
+
             const deltaY = (oldDomIndex - newIndex) * rowHeight;
-            console.log(`🎬 Animating ${player.username}: position ${oldDomIndex} → ${newIndex} (delta: ${deltaY}px)`);
             row.style.transform = `translateY(${deltaY}px)`;
             row.style.transition = 'transform 0.6s ease';
 
-            // Reset transform after animation
             setTimeout(() => {
                 row.style.transform = '';
                 row.style.transition = '';
@@ -280,7 +391,7 @@ function createPlayerRow(player, rank) {
         <td class="rank-cell">#${rank}</td>
         <td class="player-name">${player.username}</td>
         <td class="score-cell">${player.score}</td>
-        <td class="change-cell">—</td>
+        <td class="change-cell">new</td>
         <td>online</td>
         <td>
             <button onclick="updatePlayerScore(${player.id},10)">+10</button>
@@ -291,12 +402,31 @@ function createPlayerRow(player, rank) {
     return row;
 }
 
-function updateRowContent(row, player, rank) {
+function updateRowContent(row, player, rank, change = null) {
     const cells = row.querySelectorAll('td');
     if (cells.length >= 3) {
         cells[0].textContent = `#${rank}`;
         cells[1].textContent = player.username;
         cells[2].textContent = player.score;
+    }
+
+    const changeCell = row.querySelector('.change-cell');
+    if (changeCell) {
+        if (change === null) {
+            changeCell.textContent = '—';
+            changeCell.classList.remove('change-up', 'change-down');
+        } else if (change > 0) {
+            changeCell.textContent = `+${change}`;
+            changeCell.classList.add('change-up');
+            changeCell.classList.remove('change-down');
+        } else if (change < 0) {
+            changeCell.textContent = `${change}`;
+            changeCell.classList.add('change-down');
+            changeCell.classList.remove('change-up');
+        } else {
+            changeCell.textContent = '0';
+            changeCell.classList.remove('change-up', 'change-down');
+        }
     }
 }
 
@@ -372,35 +502,6 @@ function updateTopPlayers(players) {
     }
 
     console.log("Top players updated");
-}
-
-// =============================
-// ACTIVITY FEED
-// =============================
-function updateActivityFeed(data) {
-    const feed = document.getElementById("activity-feed");
-    if (!feed) return;
-
-    feed.innerHTML = "";
-
-    if (!data || !data.length) {
-        feed.innerHTML = '<div class="activity-item">No recent activity yet</div>';
-        return;
-    }
-
-    data.slice(0, 10).forEach(item => {
-        const div = document.createElement("div");
-        div.className = "activity-item";
-        div.textContent = item;
-
-        if (/\+\d+|gained|won/i.test(item)) {
-            div.classList.add('activity-gain');
-        } else if (/\-|lost|lost/i.test(item)) {
-            div.classList.add('activity-loss');
-        }
-
-        feed.appendChild(div);
-    });
 }
 
 // =============================
@@ -521,6 +622,25 @@ function setupEventListeners(){
         }
     });
 
+    document.getElementById("refresh-activity-btn")?.addEventListener("click", () => {
+        fetchRecentActivity();
+    });
+
+    document.getElementById("clear-activity-btn")?.addEventListener("click", () => {
+        activityFeedEvents = [];
+        activityFilter = 'all';
+        document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.filter === 'all'));
+        updateActivityFeed([]);
+    });
+
+    document.querySelectorAll('.filter-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            activityFilter = button.dataset.filter || 'all';
+            document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.toggle('active', btn === button));
+            updateActivityFeed(activityFeedEvents);
+        });
+    });
+
     document.getElementById("add-player-btn")?.addEventListener("click", openPlayerModal);
     document.getElementById("simulate-update-btn")?.addEventListener("click", simulateServerUpdate);
 
@@ -560,17 +680,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (isDashboardPage()) {
         fetchDashboard();
-        dashboardInterval = setInterval(fetchDashboard, 10000);
+        dashboardInterval = setInterval(fetchDashboard, 5000);
         activityInterval = setInterval(fetchRecentActivity, 5000);
-        console.log("Dashboard auto-refresh started (every 10 seconds)");
-    } else {
+        console.log("Dashboard auto-refresh started (every 5 seconds)");
+    } else if (document.getElementById('activity-feed')) {
+        fetchRecentActivity();
+        activityInterval = setInterval(fetchRecentActivity, 5000);
+        console.log("Activity page auto-refresh started (every 5 seconds)");
+    } else if (!isStatsPage()) {
         fetchLeaderboard();
         fetchRecentActivity();
+        activityInterval = setInterval(fetchRecentActivity, 5000);
         if (document.getElementById("leaderboard-body")) {
             updateInterval = setInterval(() => {
                 fetchLeaderboard();
-            }, 12000);
-            console.log("Leaderboard auto-refresh started (every 12 seconds)");
+            }, 5000);
+            console.log("Leaderboard auto-refresh started (every 5 seconds)");
         }
     }
 });

@@ -13,6 +13,11 @@ class NetworkGraph {
         this.sizeScale = d3.scaleLinear().range([10, 30]);
         this.isInitialized = false;
         this.tooltip = null;
+        this.networkStats = {
+            totalConnections: 0,
+            isolatedPlayers: 0,
+            clusters: 0
+        };
     }
 
     init() {
@@ -62,6 +67,41 @@ class NetworkGraph {
             .style('z-index', '1000');
 
         this.isInitialized = true;
+    }
+
+    async loadNetworkStats() {
+        try {
+            const response = await fetch('http://localhost:8080/networkStats');
+            if (!response.ok) {
+                throw new Error('Failed to load network stats');
+            }
+            const stats = await response.json();
+            this.updateStatsUI(stats);
+        } catch (error) {
+            console.error('Error loading network stats:', error);
+            this.updateStatsUI({ totalConnections: 0, isolatedPlayers: 0, clusters: 0 });
+        }
+    }
+
+    updateStatsUI(stats) {
+        this.animateStatValue('network-connections', stats.totalConnections || 0);
+        this.animateStatValue('isolated-players', stats.isolatedPlayers || 0);
+        this.animateStatValue('network-clusters', stats.clusters || 0);
+    }
+
+    animateStatValue(elementId, newValue) {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+
+        const currentValue = parseInt(element.textContent) || 0;
+        if (currentValue === newValue) return;
+
+        element.classList.add('stat-updating');
+        element.textContent = newValue;
+
+        setTimeout(() => {
+            element.classList.remove('stat-updating');
+        }, 500);
     }
 
     async loadData() {
@@ -236,24 +276,68 @@ class NetworkGraph {
         }
         this.isInitialized = false;
     }
+
+    async loadNetworkStats() {
+        try {
+            const response = await fetch('http://localhost:8080/networkStats');
+            if (!response.ok) {
+                throw new Error('Failed to load network stats');
+            }
+            const stats = await response.json();
+            this.updateStatsUI(stats);
+        } catch (error) {
+            console.error('Error loading network stats:', error);
+            this.updateStatsUI({ totalConnections: 0, isolatedPlayers: 0, clusters: 0 });
+        }
+    }
+
+    updateStatsUI(stats) {
+        this.animateStatValue('network-connections', stats.totalConnections || 0);
+        this.animateStatValue('isolated-players', stats.isolatedPlayers || 0);
+        this.animateStatValue('network-clusters', stats.clusters || 0);
+    }
+
+    animateStatValue(elementId, newValue) {
+        const element = document.getElementById(elementId);
+        if (!element) return;
+
+        const currentValue = parseInt(element.textContent) || 0;
+        if (currentValue === newValue) return;
+
+        element.classList.add('stat-updating');
+        element.textContent = newValue;
+
+        setTimeout(() => {
+            element.classList.remove('stat-updating');
+        }, 500);
+    }
 }
 
 // Initialize network graph when page loads
 let networkGraph;
+let statsRefreshInterval;
 
 document.addEventListener('DOMContentLoaded', function() {
     networkGraph = new NetworkGraph('network-svg');
     networkGraph.init();
     networkGraph.loadData();
+    networkGraph.loadNetworkStats();
 
-    // Auto-refresh every 5 seconds
+    // Auto-refresh network visualization every 5 seconds
     setInterval(() => {
         networkGraph.loadData();
+    }, 5000);
+
+    // Auto-refresh network stats every 5 seconds
+    if (statsRefreshInterval) clearInterval(statsRefreshInterval);
+    statsRefreshInterval = setInterval(() => {
+        networkGraph.loadNetworkStats();
     }, 5000);
 
     // Handle refresh button
     d3.select('#refresh-network-btn').on('click', () => {
         networkGraph.loadData();
+        networkGraph.loadNetworkStats();
     });
 });
 
@@ -261,5 +345,8 @@ document.addEventListener('DOMContentLoaded', function() {
 window.addEventListener('beforeunload', function() {
     if (networkGraph) {
         networkGraph.destroy();
+    }
+    if (statsRefreshInterval) {
+        clearInterval(statsRefreshInterval);
     }
 });

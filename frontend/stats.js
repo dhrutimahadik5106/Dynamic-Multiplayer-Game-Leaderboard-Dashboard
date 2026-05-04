@@ -1,214 +1,299 @@
-// stats.js - Statistics and Charts
-
 class StatsDashboard {
     constructor() {
         this.charts = {};
-        this.data = {};
-        this.isInitialized = false;
+        this.state = null;
+        this.refreshInterval = null;
+        this.backendAvailable = true;
     }
 
-    init() {
-        if (this.isInitialized) return;
-
+    async init() {
+        console.log('[Stats] Initializing dashboard...');
         this.createCharts();
-        this.loadData();
-        this.isInitialized = true;
-
-        // Auto-refresh every 30 seconds
-        setInterval(() => {
-            this.loadData();
-        }, 30000);
+        
+        // Try to load from backend first
+        const loaded = await this.loadFromBackend();
+        if (!loaded) {
+            console.log('[Stats] Backend unavailable, using frontend simulation');
+            this.initializeSimulation();
+        }
+        
+        this.renderAll();
+        
+        // Auto-refresh every 5 seconds
+        this.refreshInterval = setInterval(async () => {
+            if (this.backendAvailable) {
+                await this.loadFromBackend();
+            } else {
+                this.simulateUpdate();
+            }
+            this.renderAll();
+        }, 5000);
+        
+        console.log('[Stats] Dashboard ready');
     }
 
-    async loadData() {
+    async loadFromBackend() {
         try {
-            const response = await fetch('/api/stats');
+            console.log('[Stats] Fetching from /stats endpoint...');
+            const API_BASE = (window.location.origin && window.location.origin !== 'null') 
+                ? window.location.origin 
+                : 'http://localhost:8080';
+            
+            const response = await fetch(`${API_BASE}/stats`);
             if (!response.ok) {
-                throw new Error('Failed to load stats data');
+                throw new Error(`HTTP ${response.status}`);
             }
-            this.data = await response.json();
-            this.updateCharts();
-            this.updateStatsCards();
+            
+            const data = await response.json();
+            console.log('[Stats] Backend response:', data);
+            console.log('STATS DATA:', data);
+            if (!data || !data.trends || !Array.isArray(data.timeLabels)) {
+                console.error('[Stats] Invalid backend payload', data);
+                throw new Error('Invalid stats payload');
+            }
+            
+            // Validate and transform backend response
+            this.state = this.normalizeBackendData(data);
+            console.log('[Stats] Normalized state:', this.state);
+            
+            this.backendAvailable = true;
+            return true;
+            
         } catch (error) {
-            console.error('Error loading stats data:', error);
-            this.showError('Failed to load statistics data');
+            console.error('[Stats] Backend fetch error:', error);
+            this.backendAvailable = false;
+            return false;
+        }
+    }
+
+    normalizeBackendData(data) {
+        // Ensure all required fields exist with proper structure
+        const normalized = {
+            totalPlayers: data.totalPlayers ?? 0,
+            totalMatches: data.totalMatches ?? 0,
+            avgSession: Math.round(data.avgSessionTime ?? 0),
+            recordsBroken: data.recordsBroken ?? 0,
+            
+            topPlayers: Array.isArray(data.topPlayers) 
+                ? data.topPlayers.map((p, i) => ({
+                    username: p.username ?? `Player ${i+1}`,
+                    score: p.score ?? 0,
+                    change: 0,
+                    rank: i + 1
+                }))
+                : [],
+            
+            rankDistribution: {
+                top10: data.rankDistribution?.top10 ?? 0,
+                top25: data.rankDistribution?.top25 ?? 0,
+                top50: data.rankDistribution?.top50 ?? 0,
+                bottom50: data.rankDistribution?.bottom50 ?? 0
+            },
+            
+            timeLabels: Array.isArray(data.timeLabels) ? data.timeLabels : [],
+            
+            trends: {
+                avgScore: Array.isArray(data.trends?.avgScore) ? data.trends.avgScore : [],
+                topScore: Array.isArray(data.trends?.topScore) ? data.trends.topScore : [],
+                activePlayers: Array.isArray(data.trends?.activePlayers) ? data.trends.activePlayers : []
+            },
+            
+            activityTimeline: Array.isArray(data.activityTimeline) ? data.activityTimeline : []
+        };
+        
+        // Validate array lengths match
+        const expectedLen = normalized.timeLabels.length;
+        if (expectedLen > 0) {
+            ['avgScore', 'topScore', 'activePlayers'].forEach(key => {
+                while (normalized.trends[key].length < expectedLen) {
+                    normalized.trends[key].push(0);
+                }
+                normalized.trends[key] = normalized.trends[key].slice(-expectedLen);
+            });
+
+            while (normalized.activityTimeline.length < expectedLen) {
+                normalized.activityTimeline.unshift(0);
+            }
+            normalized.activityTimeline = normalized.activityTimeline.slice(-expectedLen);
+        }
+        
+        return normalized;
+    }
+
+    initializeSimulation() {
+        const names = [
+            'ShadowFox', 'NovaRift', 'PixelFury', 'BladeDrift', 'CyberPulse',
+            'VortexAce', 'EchoStrike', 'NeonViper', 'QuantumJet', 'TitanFlux'
+        ];
+
+        const topPlayers = names.map((name, index) => ({
+            username: name,
+            score: 840 + (10 - index) * 45 + Math.floor(Math.random() * 80),
+            change: 0,
+            rank: index + 1
+        }));
+
+        this.state = {
+            totalPlayers: 12840,
+            totalMatches: 5432,
+            avgSession: 28,
+            recordsBroken: 37,
+            rankDistribution: { top10: 12, top25: 29, top50: 53, bottom50: 47 },
+            topPlayers,
+            timeLabels: [],
+            trends: { avgScore: [], topScore: [], activePlayers: [] },
+            activityTimeline: []
+        };
+
+        for (let i = 0; i < 10; i += 1) {
+            this.pushTrendData();
+            this.pushActivityData();
         }
     }
 
     createCharts() {
-        // Score Distribution Chart
-        this.charts.scoreDistribution = new Chart(
-            document.getElementById('score-distribution-chart'),
-            {
-                type: 'bar',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Score Distribution',
-                        data: [],
-                        backgroundColor: 'rgba(0, 212, 255, 0.6)',
-                        borderColor: '#00d4ff',
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: '#e2e8f0'
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#94a3b8'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#94a3b8'
-                            }
-                        }
-                    }
-                }
-            }
-        );
+        this.destroyCharts();
 
-        // Performance Trends Chart
-        this.charts.performanceTrends = new Chart(
-            document.getElementById('performance-trends-chart'),
-            {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Average Score',
-                        data: [],
-                        borderColor: '#00d4ff',
-                        backgroundColor: 'rgba(0, 212, 255, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            labels: {
-                                color: '#e2e8f0'
-                            }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#94a3b8'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#94a3b8'
-                            }
-                        }
-                    }
-                }
-            }
-        );
-
-        // Rank Distribution Chart
         this.charts.rankDistribution = new Chart(
-            document.getElementById('rank-distribution-chart'),
-            {
-                type: 'doughnut',
+            document.getElementById('rank-distribution-chart'), {
+                type: 'bar',
                 data: {
                     labels: ['Top 10%', 'Top 25%', 'Top 50%', 'Bottom 50%'],
                     datasets: [{
-                        data: [],
-                        backgroundColor: [
-                            '#10b981',
-                            '#00d4ff',
-                            '#f59e0b',
-                            '#ef4444'
-                        ],
+                        label: 'Players',
+                        data: [0, 0, 0, 0],
+                        backgroundColor: ['#22d3ee', '#8b5cf6', '#34d399', '#f97316'],
+                        borderColor: ['#0ea5e9', '#7c3aed', '#10b981', '#f59e0b'],
                         borderWidth: 2,
-                        borderColor: 'rgba(15, 23, 42, 0.8)'
+                        borderRadius: 12,
+                        borderSkipped: false
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            labels: {
-                                color: '#e2e8f0'
-                            }
+                        legend: { display: false },
+                        tooltip: { enabled: true }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#cbd5e1', font: { weight: '600' } },
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#cbd5e1' },
+                            grid: { color: 'rgba(148, 163, 184, 0.15)' }
                         }
                     }
                 }
             }
         );
 
-        // Activity Timeline Chart
-        this.charts.activityTimeline = new Chart(
-            document.getElementById('activity-timeline-chart'),
-            {
+        this.charts.performanceTrends = new Chart(
+            document.getElementById('performance-trends-chart'), {
                 type: 'line',
                 data: {
                     labels: [],
-                    datasets: [{
-                        label: 'Activity Events',
-                        data: [],
-                        borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        tension: 0.4,
-                        fill: true
-                    }]
+                    datasets: [
+                        {
+                            label: 'Average Score',
+                            data: [],
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#38bdf8'
+                        },
+                        {
+                            label: 'Top Score',
+                            data: [],
+                            borderColor: '#22c55e',
+                            backgroundColor: 'rgba(34, 197, 94, 0.18)',
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#22c55e'
+                        },
+                        {
+                            label: 'Players',
+                            data: [],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.18)',
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#f59e0b',
+                            yAxisID: 'y1'
+                        }
+                    ]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: {
-                            labels: {
-                                color: '#e2e8f0'
-                            }
-                        }
+                        legend: { labels: { color: '#e2e8f0' } },
+                        tooltip: { mode: 'index', intersect: false }
                     },
+                    interaction: { mode: 'nearest', intersect: false },
                     scales: {
+                        x: {
+                            ticks: { color: '#cbd5e1' },
+                            grid: { color: 'rgba(148, 163, 184, 0.12)' }
+                        },
                         y: {
                             beginAtZero: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#94a3b8'
-                            }
+                            ticks: { color: '#cbd5e1' },
+                            grid: { color: 'rgba(148, 163, 184, 0.12)' }
                         },
+                        y1: {
+                            position: 'right',
+                            beginAtZero: true,
+                            ticks: { color: '#f59e0b' },
+                            grid: { display: false }
+                        }
+                    }
+                }
+            }
+        );
+
+        this.charts.activityTimeline = new Chart(
+            document.getElementById('activity-timeline-chart'), {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Activity Events',
+                            data: [],
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.18)',
+                            tension: 0.35,
+                            fill: true,
+                            pointRadius: 3,
+                            pointBackgroundColor: '#38bdf8'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { labels: { color: '#e2e8f0' } },
+                        tooltip: { mode: 'index', intersect: false }
+                    },
+                    interaction: { mode: 'nearest', intersect: false },
+                    scales: {
                         x: {
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#94a3b8'
-                            }
+                            ticks: { color: '#cbd5e1' },
+                            grid: { color: 'rgba(148, 163, 184, 0.12)' }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            ticks: { color: '#cbd5e1' },
+                            grid: { color: 'rgba(148, 163, 184, 0.12)' }
                         }
                     }
                 }
@@ -216,92 +301,178 @@ class StatsDashboard {
         );
     }
 
-    updateCharts() {
-        if (!this.data) return;
+    pushTrendData() {
+        const now = new Date();
+        this.state.timeLabels.push(now.toLocaleTimeString('en-US', { hour12: false, minute: '2-digit', second: '2-digit' }));
+        if (this.state.timeLabels.length > 10) this.state.timeLabels.shift();
 
-        // Update Score Distribution
-        if (this.data.scoreDistribution) {
-            this.charts.scoreDistribution.data.labels = this.data.scoreDistribution.labels || [];
-            this.charts.scoreDistribution.data.datasets[0].data = this.data.scoreDistribution.data || [];
-            this.charts.scoreDistribution.update();
-        }
+        const prevAvg = this.state.trends.avgScore.slice(-1)[0] ?? 420;
+        const prevTop = this.state.trends.topScore.slice(-1)[0] ?? 920;
+        const prevPlayers = this.state.trends.activePlayers.slice(-1)[0] ?? this.state.totalPlayers;
 
-        // Update Performance Trends
-        if (this.data.performanceTrends) {
-            this.charts.performanceTrends.data.labels = this.data.performanceTrends.labels || [];
-            this.charts.performanceTrends.data.datasets[0].data = this.data.performanceTrends.data || [];
-            this.charts.performanceTrends.update();
-        }
+        const nextAvg = Math.max(320, Math.min(480, prevAvg + this.randomInt(-8, 12)));
+        const nextTop = Math.max(860, Math.min(990, prevTop + this.randomInt(-12, 24)));
+        const nextPlayers = Math.max(12200, Math.min(13700, prevPlayers + this.randomInt(-18, 28)));
 
-        // Update Rank Distribution
-        if (this.data.rankDistribution) {
-            this.charts.rankDistribution.data.datasets[0].data = this.data.rankDistribution || [];
-            this.charts.rankDistribution.update();
-        }
+        this.state.trends.avgScore.push(nextAvg);
+        this.state.trends.topScore.push(nextTop);
+        this.state.trends.activePlayers.push(nextPlayers);
 
-        // Update Activity Timeline
-        if (this.data.activityTimeline) {
-            this.charts.activityTimeline.data.labels = this.data.activityTimeline.labels || [];
-            this.charts.activityTimeline.data.datasets[0].data = this.data.activityTimeline.data || [];
-            this.charts.activityTimeline.update();
-        }
+        if (this.state.trends.avgScore.length > 10) this.state.trends.avgScore.shift();
+        if (this.state.trends.topScore.length > 10) this.state.trends.topScore.shift();
+        if (this.state.trends.activePlayers.length > 10) this.state.trends.activePlayers.shift();
+    }
+
+    pushActivityData() {
+        const joins = this.randomInt(12, 27);
+        const matches = this.randomInt(8, 22);
+        const scoreUpdates = this.randomInt(24, 52);
+        const totalEvents = joins + matches + scoreUpdates;
+
+        this.state.activityTimeline.joins.push(joins);
+        this.state.activityTimeline.matches.push(matches);
+        this.state.activityTimeline.scoreUpdates.push(scoreUpdates);
+        this.state.activityTimeline.totalEvents.push(totalEvents);
+
+        if (this.state.activityTimeline.joins.length > 10) this.state.activityTimeline.joins.shift();
+        if (this.state.activityTimeline.matches.length > 10) this.state.activityTimeline.matches.shift();
+        if (this.state.activityTimeline.scoreUpdates.length > 10) this.state.activityTimeline.scoreUpdates.shift();
+        if (this.state.activityTimeline.totalEvents.length > 10) this.state.activityTimeline.totalEvents.shift();
+    }
+
+    randomInt(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    simulateUpdate() {
+        if (!this.state) return;
+        
+        this.state.totalPlayers += this.randomInt(6, 16);
+        this.state.totalMatches += this.randomInt(2, 8);
+        const sessionDelta = this.randomInt(-1, 2);
+        this.state.avgSession = Math.max(10, Math.min(40, this.state.avgSession + sessionDelta));
+        if (Math.random() < 0.35) this.state.recordsBroken += 1;
+
+        this.state.rankDistribution.top10 = Math.max(8, Math.min(18, this.state.rankDistribution.top10 + this.randomInt(-1, 1)));
+        this.state.rankDistribution.top25 = Math.max(23, Math.min(33, this.state.rankDistribution.top25 + this.randomInt(-1, 2)));
+        this.state.rankDistribution.top50 = Math.max(45, Math.min(58, this.state.rankDistribution.top50 + this.randomInt(-1, 1)));
+        this.state.rankDistribution.bottom50 = 100 - this.state.rankDistribution.top50;
+
+        this.state.topPlayers = this.state.topPlayers.map((player) => {
+            const delta = this.randomInt(-28, 52);
+            return {
+                ...player,
+                score: Math.max(780, player.score + delta),
+                change: delta
+            };
+        }).sort((a, b) => b.score - a.score).map((player, index) => ({ ...player, rank: index + 1 }));
+
+        this.pushTrendData();
+        this.pushActivityData();
+    }
+
+    renderAll() {
+        if (!this.state) return;
+        this.updateStatsCards();
+        this.updateTopPlayers();
+        this.updateCharts();
     }
 
     updateStatsCards() {
-        if (!this.data.stats) return;
-
-        const stats = this.data.stats;
-
-        // Update stat values
-        this.updateStatValue('total-players', stats.totalPlayers || 0);
-        this.updateStatValue('total-games', stats.totalGames || 0);
-        this.updateStatValue('avg-score', (stats.averageScore || 0).toFixed(1));
-        this.updateStatValue('active-sessions', stats.activeSessions || 0);
-        this.updateStatValue('peak-concurrent', stats.peakConcurrent || 0);
-        this.updateStatValue('uptime', `${stats.uptime || 0}%`);
+        if (!this.state) return;
+        this.animateNumber('total-players', this.state.totalPlayers);
+        this.animateNumber('total-matches', this.state.totalMatches);
+        this.animateNumber('avg-session', this.state.avgSession, 'm');
+        this.animateNumber('records-broken', this.state.recordsBroken);
     }
 
-    updateStatValue(id, value) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
-        }
+    animateNumber(id, target, suffix = '') {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const current = Number(el.dataset.value ?? el.textContent.replace(/\D/g, '')) || 0;
+        const end = Number(target);
+        el.dataset.value = end;
+        el.classList.add('stat-updating');
+
+        const startTime = performance.now();
+        const duration = 700;
+        const step = (time) => {
+            const progress = Math.min((time - startTime) / duration, 1);
+            const value = Math.round(current + (end - current) * this.easeOutQuad(progress));
+            el.textContent = suffix ? `${value}${suffix}` : value.toLocaleString();
+            if (progress < 1) requestAnimationFrame(step);
+            else setTimeout(() => el.classList.remove('stat-updating'), 300);
+        };
+        requestAnimationFrame(step);
     }
 
-    showError(message) {
-        // Show error in a chart container
-        const container = document.getElementById('score-distribution-chart').parentElement;
-        container.innerHTML = `
-            <div class="chart-error">
-                <h4>⚠️ Error</h4>
-                <p>${message}</p>
-                <button class="btn btn-primary" onclick="statsDashboard.loadData()">Retry</button>
-            </div>
-        `;
+    easeOutQuad(t) {
+        return t * (2 - t);
     }
 
-    destroy() {
-        Object.values(this.charts).forEach(chart => {
-            if (chart) {
-                chart.destroy();
-            }
-        });
+    updateTopPlayers() {
+        const list = document.getElementById('top-players-list');
+        if (!list || !this.state || !Array.isArray(this.state.topPlayers)) return;
+
+        list.innerHTML = this.state.topPlayers.map((player) => {
+            const rankLabel = player.rank === 1 ? '🥇' : player.rank === 2 ? '🥈' : player.rank === 3 ? '🥉' : `#${player.rank}`;
+            const changeClass = player.change >= 0 ? 'trend-up' : 'trend-down';
+            const sign = player.change >= 0 ? '▲' : '▼';
+            return `
+                <div class="player-entry">
+                    <span class="player-rank">${rankLabel}</span>
+                    <span class="player-name">${player.username}</span>
+                    <span class="player-meta">
+                        <span class="player-score">${player.score.toLocaleString()}</span>
+                        <span class="player-trend ${changeClass}">${sign} ${Math.abs(player.change)}</span>
+                    </span>
+                </div>`;
+        }).join('');
+    }
+
+    updateCharts() {
+        if (!this.state) return;
+
+        // Update rank distribution
+        const dist = this.state.rankDistribution;
+        this.charts.rankDistribution.data.datasets[0].data = [
+            dist.top10,
+            dist.top25,
+            dist.top50,
+            dist.bottom50
+        ];
+        this.charts.rankDistribution.update('none');
+
+        // Update performance trends
+        this.charts.performanceTrends.data.labels = this.state.timeLabels;
+        this.charts.performanceTrends.data.datasets[0].data = this.state.trends.avgScore || [];
+        this.charts.performanceTrends.data.datasets[1].data = this.state.trends.topScore || [];
+        this.charts.performanceTrends.data.datasets[2].data = this.state.trends.activePlayers || [];
+        this.charts.performanceTrends.update('none');
+
+        // Update activity timeline
+        this.charts.activityTimeline.data.labels = this.state.timeLabels;
+        this.charts.activityTimeline.data.datasets[0].data = Array.isArray(this.state.activityTimeline) ? this.state.activityTimeline : [];
+        this.charts.activityTimeline.update('none');
+    }
+
+    destroyCharts() {
+        Object.values(this.charts).forEach((chart) => chart?.destroy?.());
         this.charts = {};
-        this.isInitialized = false;
+    }
+
+    stop() {
+        clearInterval(this.refreshInterval);
+        this.destroyCharts();
     }
 }
 
-// Initialize stats dashboard when page loads
 let statsDashboard;
-
-document.addEventListener('DOMContentLoaded', function() {
+window.addEventListener('DOMContentLoaded', () => {
     statsDashboard = new StatsDashboard();
     statsDashboard.init();
 });
 
-// Cleanup on page unload
-window.addEventListener('beforeunload', function() {
-    if (statsDashboard) {
-        statsDashboard.destroy();
-    }
+window.addEventListener('beforeunload', () => {
+    statsDashboard?.stop();
 });

@@ -189,7 +189,19 @@ body {
     font-weight: bold;
     color: #00d4ff;
     font-family: 'Orbitron', sans-serif;
+    transition: all 0.4s ease;
 }
+
+.stat-value.stat-updating {
+    animation: statPulse 0.5s ease;
+}
+
+@keyframes statPulse {
+    0% { transform: scale(1); text-shadow: 0 0 5px #00d4ff; }
+    50% { transform: scale(1.15); text-shadow: 0 0 20px #00d4ff; }
+    100% { transform: scale(1); text-shadow: 0 0 5px #00d4ff; }
+}
+
 
 /* DASHBOARD GRID */
 
@@ -239,10 +251,15 @@ body {
 
 .chart-card {
     padding: 25px;
+    background: linear-gradient(180deg, rgba(6, 12, 30, 0.88), rgba(12, 20, 48, 0.95));
+    border: 1px solid rgba(59, 130, 246, 0.18);
+    box-shadow:
+        inset 0 0 20px rgba(14, 165, 233, 0.08),
+        0 0 35px rgba(14, 165, 233, 0.12);
 }
 
 .chart-container {
-    height: 300px;
+    height: 340px;
     position: relative;
 }
 
@@ -470,6 +487,15 @@ body {
     transition: all 0.5s ease;
 }
 
+.player-row.new-row {
+    animation: fadeInRow 0.8s ease-out;
+}
+
+@keyframes fadeInRow {
+    0% { opacity: 0; transform: translateY(-8px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+
 .player-row.moving-up {
     animation: moveUp 0.5s ease-out;
 }
@@ -693,6 +719,32 @@ body {
 .btn-small {
     padding: 8px 16px;
     font-size: 0.8em;
+}
+
+/* RETRY BUTTON */
+
+.retry-button {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: #ffffff;
+    border: none;
+    padding: 15px 30px;
+    border-radius: 10px;
+    font-size: 1.1em;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 8px 25px rgba(239, 68, 68, 0.4);
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.retry-button:hover {
+    background: linear-gradient(135deg, #f87171, #ef4444);
+    box-shadow: 0 10px 30px rgba(239, 68, 68, 0.6);
+    transform: translate(-50%, -50%) scale(1.05);
 }
 
 /* RESPONSIVE */
@@ -1309,5 +1361,135 @@ tr:hover {
 @keyframes fadeIn{
     from{opacity:0;transform:translateX(-5px);}
     to{opacity:1;transform:translateX(0);}
+}
+
+/* STATS PAGE SPECIFIC */
+
+.live-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.8em;
+    color: #10b981;
+    font-weight: bold;
+}
+
+.live-dot {
+    width: 8px;
+    height: 8px;
+    background: #10b981;
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 1; }
+}
+
+.top-players-list {
+    padding: 20px;
+    max-height: 400px;
+    overflow-y: auto;
+    background: rgba(3, 15, 33, 0.75);
+    border-radius: 16px;
+    border: 1px solid rgba(59, 130, 246, 0.18);
+}
+
+.player-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border-left: 4px solid;
+    transition: all 0.3s ease;
+}
+
+.player-entry:nth-child(1) { border-left-color: #ffd700; }
+.player-entry:nth-child(2) { border-left-color: #c0c0c0; }
+.player-entry:nth-child(3) { border-left-color: #cd7f32; }
+.player-entry:nth-child(n+4) { border-left-color: #00d4ff; }
+
+.player-rank {
+    font-size: 1.2em;
+    font-weight: bold;
+    min-width: 40px;
+}
+
+.player-name {
+    flex: 1;
+    font-weight: 600;
+}
+
+.player-score {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1.1em;
+    color: #7dd3fc;
+    font-weight: bold;
+}
+
+.live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+}
+
+.live-dot {
+    width: 10px;
+    height: 10px;
+    background: #34d399;
+    border-radius: 50%;
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.8);
+}
+
+.db-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-top: 10px;
+}
+
+.db-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    background: rgba(3, 15, 33, 0.8);
+    border-radius: 14px;
+    border: 1px solid rgba(59, 130, 246, 0.15);
+}
+
+.db-label {
+    color: #94a3b8;
+    font-size: 0.95em;
+}
+
+.db-value {
+    font-family: 'Orbitron', sans-serif;
+    color: #22d3ee;
+    font-weight: 700;
+}
+
+/* COUNT-UP ANIMATION */
+.stat-value {
+    transition: all 0.5s ease;
+}
+
+.stat-value.counting {
+    animation: countGlow 0.5s ease;
+}
+
+@keyframes countGlow {
+    0% { text-shadow: 0 0 5px #00d4ff; }
+    50% { text-shadow: 0 0 20px #00d4ff, 0 0 30px #00d4ff; }
+    100% { text-shadow: 0 0 5px #00d4ff; }
 }
 
