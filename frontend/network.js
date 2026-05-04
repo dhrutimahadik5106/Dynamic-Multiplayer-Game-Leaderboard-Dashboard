@@ -126,11 +126,67 @@ class NetworkGraph {
             // Update scales
             this.sizeScale.domain(d3.extent(this.nodes, d => d.score || 0));
 
+            this.updateStatsCards();
             this.render();
         } catch (error) {
             console.error('Error loading network data:', error);
             this.showError('Failed to load network data');
         }
+    }
+
+    updateStatsCards() {
+        const connections = this.links.length;
+        const connectedIds = new Set();
+
+        this.links.forEach(link => {
+            connectedIds.add(link.source.id || link.source);
+            connectedIds.add(link.target.id || link.target);
+        });
+
+        let isolatedPlayers = 0;
+        this.nodes.forEach(node => {
+            if (!connectedIds.has(node.id)) {
+                isolatedPlayers++;
+            }
+        });
+
+        let clusters = 0;
+        const adjacency = new Map();
+        this.nodes.forEach(node => adjacency.set(node.id, []));
+        this.links.forEach(link => {
+            const sourceId = link.source.id || link.source;
+            const targetId = link.target.id || link.target;
+            if (adjacency.has(sourceId) && adjacency.has(targetId)) {
+                adjacency.get(sourceId).push(targetId);
+                adjacency.get(targetId).push(sourceId);
+            }
+        });
+
+        const visited = new Set();
+        const walk = (nodeId) => {
+            visited.add(nodeId);
+            const neighbors = adjacency.get(nodeId) || [];
+            neighbors.forEach(nextId => {
+                if (!visited.has(nextId)) {
+                    walk(nextId);
+                }
+            });
+        };
+
+        this.nodes.forEach(node => {
+            if (!visited.has(node.id) && (adjacency.get(node.id) || []).length > 0) {
+                clusters++;
+                walk(node.id);
+            }
+        });
+
+        const connectionsEl = document.getElementById('network-connections');
+        const isolatedEl = document.getElementById('isolated-players');
+        const clustersEl = document.getElementById('network-clusters');
+
+        if (connectionsEl) connectionsEl.textContent = connections;
+        if (isolatedEl) isolatedEl.textContent = isolatedPlayers;
+        if (clustersEl) clustersEl.textContent = clusters;
     }
 
     render() {

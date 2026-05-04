@@ -306,9 +306,20 @@ class StatsDashboard {
         this.state.timeLabels.push(now.toLocaleTimeString('en-US', { hour12: false, minute: '2-digit', second: '2-digit' }));
         if (this.state.timeLabels.length > 10) this.state.timeLabels.shift();
 
+<<<<<<< HEAD
         const prevAvg = this.state.trends.avgScore.slice(-1)[0] ?? 420;
         const prevTop = this.state.trends.topScore.slice(-1)[0] ?? 920;
         const prevPlayers = this.state.trends.activePlayers.slice(-1)[0] ?? this.state.totalPlayers;
+=======
+        const topPlayers = Array.isArray(this.data.topPlayers) ? this.data.topPlayers : [];
+
+        // Update Top 10 Players chart
+        if (topPlayers.length) {
+            this.charts.scoreDistribution.data.labels = topPlayers.map(player => player.username || 'Player');
+            this.charts.scoreDistribution.data.datasets[0].data = topPlayers.map(player => player.score || 0);
+            this.charts.scoreDistribution.update();
+        }
+>>>>>>> 32006fd7b88c7d28eff3f2ec53b06997290b94c7
 
         const nextAvg = Math.max(320, Math.min(480, prevAvg + this.randomInt(-8, 12)));
         const nextTop = Math.max(860, Math.min(990, prevTop + this.randomInt(-12, 24)));
@@ -379,11 +390,27 @@ class StatsDashboard {
     }
 
     updateStatsCards() {
+<<<<<<< HEAD
         if (!this.state) return;
         this.animateNumber('total-players', this.state.totalPlayers);
         this.animateNumber('total-matches', this.state.totalMatches);
         this.animateNumber('avg-session', this.state.avgSession, 'm');
         this.animateNumber('records-broken', this.state.recordsBroken);
+=======
+        if (!this.data.stats) return;
+
+        const stats = this.data.stats;
+
+        this.updateStatValue('total-players', stats.totalPlayers || 0);
+        this.updateStatValue('total-matches', stats.totalGames || 0);
+        this.updateStatValue('avg-session', `${Math.max(1, Math.round((stats.averageScore || 0) / 100))}m`);
+        this.updateStatValue('records-broken', this.data.recordsBroken || 0);
+
+        this.updateStatValue('db-players', `${this.data.dbPlayers || stats.totalPlayers || 0} rows`);
+        this.updateStatValue('db-matches', `${this.data.dbMatches || stats.totalGames || 0} rows`);
+        this.updateStatValue('db-activity', `${this.data.dbActivity || 0} entries`);
+        this.updateStatValue('db-size', `${(this.data.dbSize || 0).toFixed(2)} MB`);
+>>>>>>> 32006fd7b88c7d28eff3f2ec53b06997290b94c7
     }
 
     animateNumber(id, target, suffix = '') {
@@ -406,8 +433,23 @@ class StatsDashboard {
         requestAnimationFrame(step);
     }
 
+<<<<<<< HEAD
     easeOutQuad(t) {
         return t * (2 - t);
+=======
+    showError(message) {
+        // Show error in a chart container
+        const chartCanvas = document.getElementById('score-distribution-chart');
+        if (!chartCanvas || !chartCanvas.parentElement) return;
+        const container = chartCanvas.parentElement;
+        container.innerHTML = `
+            <div class="chart-error">
+                <h4>⚠️ Error</h4>
+                <p>${message}</p>
+                <button class="btn btn-primary" onclick="statsDashboard.loadData()">Retry</button>
+            </div>
+        `;
+>>>>>>> 32006fd7b88c7d28eff3f2ec53b06997290b94c7
     }
 
     updateTopPlayers() {
