@@ -1,30 +1,9 @@
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
+#include "heap.h"
 
 using namespace std;
-
-class MaxHeap
-{
-private:
-    Player heap[1000];
-    int heapSize;
-    
-    int getParent(int i);
-    int getLeft(int i);
-    int getRight(int i);
-    void heapifyUp(int index);
-    void heapifyDown(int index);
-    void swapPlayers(int i, int j);
-    
-public:
-    MaxHeap();
-    void insert(Player player);
-    Player getMax();
-    Player extractMax();
-    void getTopN(Player* topPlayers, int n, int* count);
-    int getSize();
-};
 
 MaxHeap::MaxHeap()
 {
@@ -123,6 +102,7 @@ void MaxHeap::getTopN(Player* topPlayers, int n, int* count)
     
     MaxHeap temp;
     temp.heapSize = heapSize;
+
     for(int i = 0; i < heapSize; i++)
         temp.heap[i] = heap[i];
     

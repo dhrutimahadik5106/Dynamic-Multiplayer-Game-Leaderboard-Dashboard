@@ -1,6 +1,6 @@
 // activity.js - Activity Feed Page
 
-const API_BASE = 'http://localhost:8080';
+
 
 let allActivities = [];
 let currentFilter = 'all';
@@ -39,11 +39,13 @@ function renderActivityFeed() {
     let filtered = allActivities;
     
     if (currentFilter === 'score') {
-        filtered = allActivities.filter(a => /score|gained|won|points|updated/i.test(a));
-    } else if (currentFilter === 'player') {
-        filtered = allActivities.filter(a => /joined|new player/i.test(a));
-    } else if (currentFilter === 'match') {
-        filtered = allActivities.filter(a => /match|game|played|victory/i.test(a));
+    filtered = allActivities.filter(a => /score updated|score|points/i.test(a));
+    }
+    else if (currentFilter === 'player') {
+        filtered = allActivities.filter(a => /joined/i.test(a));
+    }
+    else if (currentFilter === 'match') {
+        filtered = allActivities.filter(a => /match|played|victory/i.test(a));
     }
     
     if (filtered.length === 0) {
@@ -103,6 +105,7 @@ function setupFilterButtons() {
             renderActivityFeed();
             
             console.log("Filter changed to:", currentFilter);
+            console.log("Filter clicked:", e.target.dataset.filter);
         });
     });
 }

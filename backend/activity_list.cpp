@@ -1,38 +1,18 @@
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
-
-using namespace std;
-
-struct ActivityNode
-{
-    char message[200];
-    ActivityNode* prev;
-    ActivityNode* next;
-};
-
-class ActivityList
-{
-private:
-    ActivityNode* head;
-    ActivityNode* tail;
-    int maxSize;
-    int currentSize;
-    
-public:
-    ActivityList();
-    void addActivity(char* message);
-    void getActivities(char activities[][200], int* count);
-    void clear();
-};
+#include "activity_list.h"
 
 ActivityList::ActivityList()
 {
     head = 0;
     tail = 0;
-    maxSize = 20;
     currentSize = 0;
+    maxSize = 20;
 }
+
+using namespace std;
+
 
 void ActivityList::addActivity(char* message)
 {

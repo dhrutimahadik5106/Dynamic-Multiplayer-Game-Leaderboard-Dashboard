@@ -1,43 +1,10 @@
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
+#include "player.h"
+#include "leaderboard.h"
 
 using namespace std;
-
-struct Player
-{
-    int id;
-    char username[50];
-    int score;
-};
-
-#include "activity_list.cpp"
-#include "avl_tree.cpp"
-#include "heap.cpp"
-
-class Leaderboard
-{
-private:
-    Player players[500];
-    int playerCount;
-    ActivityList activityList;
-    AVLTree avlTree;
-    MaxHeap maxHeap;
-    int nextId;
-    
-public:
-    Leaderboard();
-    Player addPlayer(char* username, int score);
-    void updateScore(int id, int change);
-    Player getPlayerById(int id);
-    void getLeaderboard(Player* result, int* count);
-    void getTopPlayers(int n, Player* result, int* count);
-    void getActivity(char activities[][200], int* count);
-    int getTotalPlayers();
-    int getTopScore();
-    double getAvgScore();
-    void simulateRandomUpdate();
-};
 
 Leaderboard::Leaderboard()
 {
@@ -111,10 +78,21 @@ void Leaderboard::updateScore(int id, int change)
         if(players[i].id == id)
         {
             players[i].score += change;
+
+        
+            avlTree = AVLTree();
+            maxHeap = MaxHeap();
+
+            for(int j = 0; j < playerCount; j++)
+            {
+                avlTree.insert(players[j]);
+                maxHeap.insert(players[j]);
+            }
+
             
             char msg[200];
             char* ptr = msg;
-            
+
             int j = 0;
             char scoreMsg[] = "Player ";
             while(scoreMsg[j] != '\0')
@@ -123,7 +101,7 @@ void Leaderboard::updateScore(int id, int change)
                 ptr++;
                 j++;
             }
-            
+
             j = 0;
             while(players[i].username[j] != '\0')
             {
@@ -131,7 +109,7 @@ void Leaderboard::updateScore(int id, int change)
                 ptr++;
                 j++;
             }
-            
+
             char scoreMsgEnd[] = " score updated!";
             j = 0;
             while(scoreMsgEnd[j] != '\0')
@@ -141,7 +119,7 @@ void Leaderboard::updateScore(int id, int change)
                 j++;
             }
             *ptr = '\0';
-            
+
             activityList.addActivity(msg);
             return;
         }

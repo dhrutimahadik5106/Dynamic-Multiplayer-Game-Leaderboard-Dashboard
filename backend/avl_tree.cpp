@@ -1,35 +1,9 @@
 #include <iostream>
 #include <cstring>
 #include <cstdlib>
+#include "avl_tree.h"
 
 using namespace std;
-
-struct Node
-{
-    Player player;
-    Node* left;
-    Node* right;
-    int height;
-};
-
-class AVLTree
-{
-private:
-    Node* root;
-    
-    int getHeight(Node* node);
-    int getBalance(Node* node);
-    Node* rotateRight(Node* y);
-    Node* rotateLeft(Node* x);
-    Node* insertNode(Node* node, Player player);
-    Node* minValueNode(Node* node);
-    void inorderWalk(Node* node, Player* players, int* index);
-    
-public:
-    AVLTree();
-    void insert(Player player);
-    void getSortedPlayers(Player* players, int* count);
-};
 
 AVLTree::AVLTree()
 {
@@ -93,16 +67,16 @@ Node* AVLTree::insertNode(Node* node, Player player)
     if(node == 0)
     {
         Node* newNode = new Node;
-        newNode->player = player;
+        newNode->data = player;   
         newNode->left = 0;
         newNode->right = 0;
         newNode->height = 1;
         return newNode;
     }
     
-    if(player.score < node->player.score)
+    if(player.score < node->data.score)
         node->left = insertNode(node->left, player);
-    else if(player.score > node->player.score)
+    else if(player.score > node->data.score)
         node->right = insertNode(node->right, player);
     else
         return node;
@@ -113,19 +87,19 @@ Node* AVLTree::insertNode(Node* node, Player player)
     
     int balance = getBalance(node);
     
-    if(balance > 1 && player.score < node->left->player.score)
+    if(balance > 1 && player.score < node->left->data.score)
         return rotateRight(node);
     
-    if(balance < -1 && player.score > node->right->player.score)
+    if(balance < -1 && player.score > node->right->data.score)
         return rotateLeft(node);
     
-    if(balance > 1 && player.score > node->left->player.score)
+    if(balance > 1 && player.score > node->left->data.score)
     {
         node->left = rotateLeft(node->left);
         return rotateRight(node);
     }
     
-    if(balance < -1 && player.score < node->right->player.score)
+    if(balance < -1 && player.score < node->right->data.score)
     {
         node->right = rotateRight(node->right);
         return rotateLeft(node);
@@ -148,7 +122,7 @@ void AVLTree::inorderWalk(Node* node, Player* players, int* index)
         return;
     
     inorderWalk(node->right, players, index);
-    players[*index] = node->player;
+    players[*index] = node->data;   
     (*index)++;
     inorderWalk(node->left, players, index);
 }

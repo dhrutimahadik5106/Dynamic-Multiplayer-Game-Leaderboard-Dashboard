@@ -9,7 +9,8 @@
 
 #pragma comment(lib, "ws2_32.lib")
 
-#include "leaderboard.cpp"
+#include "leaderboard.h"
+
 
 using namespace std;
 
@@ -768,6 +769,9 @@ int main()
                 leaderboard.updateScore(id, change);
                 sendHttp(client, "200 OK", "application/json", "{\"status\":\"ok\"}");
             }
+
+            cout << "UPDATE API HIT" << endl;
+            cout << "BODY: " << body << endl;
         }
         else
         {
